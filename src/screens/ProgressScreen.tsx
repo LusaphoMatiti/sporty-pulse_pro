@@ -836,84 +836,112 @@ export function ProgressScreen() {
           </View>
         </View>
 
-        {/* ── 6. Smart Metrics ── */}
         {isPro ? (
-          dashboardData && (
-            <View>
-              <SectionHeader title="Smart Metrics" />
-              <SmartMetrics data={dashboardData} />
+          <>
+            {/* ── 6. Smart Metrics ── */}
+            {dashboardData && (
+              <View>
+                <SectionHeader title="Smart Metrics" />
+                <SmartMetrics data={dashboardData} />
+              </View>
+            )}
+
+            {/* ── 7. Two-col: Strength + Volume ── */}
+            {dashboardData && (
+              <View style={styles.twoColRow}>
+                <StrengthTrendsCard trends={dashboardData.strengthTrends} />
+                <VolumeByMuscleCard data={dashboardData.volumeByMuscle} />
+              </View>
+            )}
+
+            {/* ── 8. Month Compare + Body Split ── */}
+            <View style={isNarrow ? styles.oneColStack : styles.twoColRow}>
+              <View style={{ flex: 1 }}>
+                <SectionHeader title="Monthly" />
+                <MonthCompareChart
+                  thisMonth={thisMonth}
+                  lastMonth={lastMonth}
+                  currentMonthName={currentMonthName}
+                  prevMonthName={prevMonthName}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <SectionHeader title="Body Split" />
+                <BodySplitCard
+                  bodySplit={bodySplit}
+                  theme={theme}
+                  isDark={isDark}
+                />
+              </View>
             </View>
-          )
+
+            {/* ── 9. PRs (Pro only) ── */}
+            {personalRecords.length > 0 && (
+              <View>
+                <SectionHeader title="Personal Records" />
+                <PersonalRecordCard
+                  state={loading ? "loading" : topPR ? "populated" : "empty"}
+                  data={topPR}
+                  onInsightPress={() => router.push("/progress/history" as any)}
+                />
+              </View>
+            )}
+
+            {/* ── 10. Session History (Pro only) ── */}
+            <View>
+              <SessionHistoryCard
+                items={historyItems}
+                onViewAll={
+                  sessionHistory.length > 6
+                    ? () => router.push("/progress/history" as any)
+                    : undefined
+                }
+              />
+
+              {sessionHistory.length > historyLimit && (
+                <Pressable
+                  onPress={() => setHistoryLimit((l) => l + 10)}
+                  style={{
+                    alignItems: "center",
+                    paddingVertical: spacing[3],
+                  }}
+                >
+                  <SPText variant="tag" accent>
+                    Load More ↓
+                  </SPText>
+                </Pressable>
+              )}
+            </View>
+          </>
         ) : (
-          <LockedUpgradeGate onUpgrade={() => router.push("/pricing" as any)} />
-        )}
+          <>
+            {/* ── Free: Month Compare + Body Split ── */}
+            <View style={isNarrow ? styles.oneColStack : styles.twoColRow}>
+              <View style={{ flex: 1 }}>
+                <SectionHeader title="Monthly" />
+                <MonthCompareChart
+                  thisMonth={thisMonth}
+                  lastMonth={lastMonth}
+                  currentMonthName={currentMonthName}
+                  prevMonthName={prevMonthName}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <SectionHeader title="Body Split" />
+                <BodySplitCard
+                  bodySplit={bodySplit}
+                  theme={theme}
+                  isDark={isDark}
+                />
+              </View>
+            </View>
 
-        {/* ── 7. Two-col: Strength + Volume ── */}
-        {isPro && dashboardData && (
-          <View style={styles.twoColRow}>
-            <StrengthTrendsCard trends={dashboardData.strengthTrends} />
-            <VolumeByMuscleCard data={dashboardData.volumeByMuscle} />
-          </View>
-        )}
-
-        {/* ── 8. Month Compare + Body Split ── */}
-        <View style={isNarrow ? styles.oneColStack : styles.twoColRow}>
-          <View style={{ flex: 1 }}>
-            <SectionHeader title="Monthly" />
-            <MonthCompareChart
-              thisMonth={thisMonth}
-              lastMonth={lastMonth}
-              currentMonthName={currentMonthName}
-              prevMonthName={prevMonthName}
+            {/* ── Free: locked gate at the bottom ── */}
+            <LockedUpgradeGate
+              onUpgrade={() => router.push("/pricing" as any)}
             />
-          </View>
-          <View style={{ flex: 1 }}>
-            <SectionHeader title="Body Split" />
-            <BodySplitCard
-              bodySplit={bodySplit}
-              theme={theme}
-              isDark={isDark}
-            />
-          </View>
-        </View>
-
-        {/* ── 9. PRs ── */}
-        {personalRecords.length > 0 && (
-          <View>
-            <SectionHeader title="Personal Records" />
-            <PersonalRecordCard
-              state={loading ? "loading" : topPR ? "populated" : "empty"}
-              data={topPR}
-              onInsightPress={() => router.push("/progress/history" as any)}
-            />
-          </View>
+          </>
         )}
-
-        {/* ── 10. Session History ── */}
-        <View>
-          <SessionHistoryCard
-            items={historyItems}
-            onViewAll={
-              sessionHistory.length > 6
-                ? () => router.push("/progress/history" as any)
-                : undefined
-            }
-          />
-
-          {sessionHistory.length > historyLimit && (
-            <Pressable
-              onPress={() => setHistoryLimit((l) => l + 10)}
-              style={{
-                alignItems: "center",
-                paddingVertical: spacing[3],
-              }}
-            >
-              <SPText variant="tag" accent>
-                Load More ↓
-              </SPText>
-            </Pressable>
-          )}
-        </View>
 
         <View style={{ height: spacing[8] }} />
       </ScrollView>

@@ -159,16 +159,6 @@ const LOCKED_FEATURES = [
     desc: "Analyze your training volume each week.",
   },
   {
-    key: "month_compare",
-    title: "This Month vs Last",
-    desc: "Compare your performance month over month.",
-  },
-  {
-    key: "body_split",
-    title: "Body Split",
-    desc: "See how your training focus is distributed.",
-  },
-  {
     key: "personal_records",
     title: "Personal Records",
     desc: "Track and celebrate your best lifts.",
