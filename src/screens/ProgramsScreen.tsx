@@ -117,6 +117,11 @@ interface WorkoutPlan {
   coachingNote?: string | null;
   identityTarget?: Identity | null;
   goalTarget?: string | null;
+  // Computed server-side, by fixed catalog position — NOT by activation
+  // history. Exactly 4 bodyweight plans (and 2 declared-equipment plans
+  // during trial) come back unlocked; everything past that cap is locked.
+  locked: boolean;
+  lockReason: LockReason | null;
 }
 
 interface AccessContext {
@@ -124,15 +129,9 @@ interface AccessContext {
   isEquipment: boolean;
   hasActiveTrial: boolean;
   trialExpiresAt: string | null;
-  canStartNewProgram: boolean;
-  activeInstanceCount: number;
-  programCap: number | null;
-  canStartNewEquipmentProgram: boolean;
-  equipmentActiveCount: number;
-  equipmentCap: number | null;
   activeEquipmentIds: string[];
   expiredEquipmentIds: string[];
-  activePlanIds: string[];
+  activePlanId: string | null;
   declaredEquipmentIds: string[];
 }
 
@@ -282,44 +281,8 @@ const LOCK_LABEL: Record<LockReason, string> = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function getLockReason(
-  plan: WorkoutPlan,
-  access: AccessContext,
-): LockReason | null {
-  if (access.isPro) return null;
-
-  const isActivePlan = access.activePlanIds.includes(plan.id);
-
-  if (!plan.requiresEquipment) {
-    // Bodyweight library — capped at 4 concurrently active programs for
-    // every non-Pro tier (free starter, equipment trial, purchased
-    // equipment). A program you're already training never locks just
-    // because you're at the cap.
-    if (isActivePlan) return null;
-    return access.canStartNewProgram ? null : "cap_reached";
-  }
-
-  // Equipment-requiring plan.
-  if (access.isEquipment) {
-    // Purchased equipment — unlimited for the equipment they own.
-    if (isActivePlan) return null;
-    return access.canStartNewEquipmentProgram ? null : "cap_reached";
-  }
-
-  const hasDeclared = access.declaredEquipmentIds.length > 0;
-  if (hasDeclared) {
-    if (access.hasActiveTrial) {
-      // Trial tier — capped at 2 concurrently active equipment programs.
-      if (isActivePlan) return null;
-      return access.canStartNewEquipmentProgram ? null : "cap_reached";
-    }
-    // Trial has ended — lock equipment programs even if one is still
-    // marked ACTIVE from before expiry. This intentionally does NOT check
-    // isActivePlan: expiry must re-lock programs you were already running.
-    return "trial_expired";
-  }
-
-  return "upgrade_required";
+function getLockReason(plan: WorkoutPlan): LockReason | null {
+  return plan.locked ? plan.lockReason : null;
 }
 
 function getTrialUrgency(
@@ -1944,19 +1907,15 @@ export function ProgramsScreen() {
     !hasActiveTrial &&
     (access.expiredEquipmentIds.length > 0 || trialExpired);
 
-  const liveAccess: AccessContext = { ...access, hasActiveTrial };
-
   const categoryFiltered =
     activeCategory === "ALL"
       ? plans
       : plans.filter((p) => p.muscleGroup === activeCategory);
 
   const unlockedPlans = categoryFiltered.filter(
-    (p) => getLockReason(p, liveAccess) === null,
+    (p) => getLockReason(p) === null,
   );
-  const lockedPlans = categoryFiltered.filter(
-    (p) => getLockReason(p, liveAccess) !== null,
-  );
+  const lockedPlans = categoryFiltered.filter((p) => getLockReason(p) !== null);
   const filteredPlans = [...unlockedPlans, ...lockedPlans];
 
   const handlePlanPress = (plan: WorkoutPlan) => {
@@ -2049,19 +2008,6 @@ export function ProgramsScreen() {
           <StarterTierCard onUpgrade={handleUpgrade} theme={theme} />
         )}
 
-        {!access.canStartNewProgram &&
-        !access.isPro &&
-        !isFreeStarter &&
-        access.programCap ? (
-          <CapTierCard
-            activeInstanceCount={access.activeInstanceCount}
-            programCap={access.programCap}
-            onUpgrade={handleUpgrade}
-            theme={theme}
-            isDark={isDark}
-          />
-        ) : null}
-
         {/* Category filters */}
         <CategoryFilters
           active={activeCategory}
@@ -2087,7 +2033,7 @@ export function ProgramsScreen() {
           <View style={{ gap: T.s12 }}>
             <SectionLabel count={filteredPlans.length} theme={theme} />
             {filteredPlans.map((plan, i) => {
-              const reason = getLockReason(plan, liveAccess);
+              const reason = getLockReason(plan);
               return reason ? (
                 <LockedProgramCard
                   key={plan.id}
@@ -2101,7 +2047,7 @@ export function ProgramsScreen() {
                 <ProgramCard
                   key={plan.id}
                   plan={plan}
-                  isActive={access.activePlanIds.includes(plan.id)}
+                  isActive={access.activePlanId === plan.id}
                   onPress={() => handlePlanPress(plan)}
                   index={i}
                   loading={activating === plan.id}
