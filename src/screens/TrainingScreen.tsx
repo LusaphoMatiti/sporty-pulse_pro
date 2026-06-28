@@ -37,12 +37,14 @@ import {
   Clock,
   BarChart3,
   Dumbbell,
+  Lock,
 } from "lucide-react-native";
 import { SPText } from "../components/ui/SPText";
 import { SPButton } from "../components/ui/SPButton";
 import { SPCard } from "../components/ui/SPCard";
 import { SPBadge } from "../components/ui/SPBadge";
 import { SPIcon } from "../components/icons/SPIcon";
+import UpgradePrompt from "../components/ui/Upgradeprompts";
 import {
   colors,
   spacing,
@@ -302,11 +304,14 @@ function ProgramsTab({
 
   const { planId, allPrograms, tier, activeEquipmentIds = [] } = data;
   const isPro = tier === "PRO";
+  const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
 
   function isProgramLocked(program: ProgramStub): boolean {
-    if (isPro) return false;
-    if (program.tier === "FREE") return false;
-    return true;
+    // "Other Programs" carousel is strictly Pro-gated: any non-Pro user
+    // sees every card here locked, regardless of their equipment trial or
+    // purchase status (those only affect the Programs Screen's own access
+    // model in lib/programaccess.ts, not this teaser strip).
+    return !isPro;
   }
 
   const unlockedPrograms = allPrograms.filter((p) => !isProgramLocked(p));
@@ -318,310 +323,223 @@ function ProgramsTab({
   const activeProgram = allPrograms.find((p) => p.id === planId);
 
   return (
-    <ScrollView
-      showsVerticalScrollIndicator={false}
-      contentContainerStyle={{ paddingBottom: tabBarHeight + rs(spacing[8]) }}
-    >
-      {/* ── Hero Program ── */}
-      {activeProgram && (
-        <View style={programStyles.heroCard}>
-          <View
-            style={[programStyles.heroImageWrap, { borderColor: theme.border }]}
-          >
-            {activeProgram.imageUrl ? (
-              <Image
-                source={{ uri: activeProgram.imageUrl }}
-                style={StyleSheet.absoluteFill}
-                contentFit="cover"
-                transition={300}
-              />
-            ) : (
-              <View
-                style={[
-                  StyleSheet.absoluteFill,
-                  { backgroundColor: theme.void },
-                ]}
-              />
-            )}
-
-            {/* Subtle bottom gradient scrim for legibility */}
-            <View style={programStyles.heroScrim} pointerEvents="none" />
-
+    <>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: tabBarHeight + rs(spacing[8]) }}
+      >
+        {/* ── Hero Program ── */}
+        {activeProgram && (
+          <View style={programStyles.heroCard}>
             <View
               style={[
-                programStyles.heroBadge,
-                { borderColor: "rgba(255,255,255,0.18)" },
+                programStyles.heroImageWrap,
+                { borderColor: theme.border },
               ]}
             >
-              <SPText
-                style={{
-                  color: "#fff",
-                  fontSize: rf(11),
-                  fontFamily: fonts.brandSemiBold,
-                  letterSpacing: 1,
-                }}
-              >
-                {activeProgram.durationWeeks} WEEKS
-              </SPText>
-            </View>
-
-            <View style={programStyles.heroTextBlock}>
-              <SPText
-                style={{
-                  color: "#fff",
-                  fontSize: rf(24),
-                  fontFamily: fonts.brandBold,
-                  lineHeight: rf(30),
-                  letterSpacing: -0.2,
-                  marginBottom: rs(spacing[1] + 2),
-                }}
-                numberOfLines={2}
-              >
-                {activeProgram.name}
-              </SPText>
-              <SPText
-                style={{
-                  color: "rgba(255,255,255,0.72)",
-                  fontSize: rf(13),
-                  lineHeight: rf(19),
-                }}
-                numberOfLines={2}
-              >
-                {activeProgram.description}
-              </SPText>
-            </View>
-          </View>
-
-          {/* Metadata row — sits below the image, on surface */}
-          <View
-            style={[
-              programStyles.heroMetaRow,
-              { backgroundColor: theme.surface, borderColor: theme.border },
-            ]}
-          >
-            <View style={programStyles.metaItem}>
-              <CalendarDays
-                size={rs(16)}
-                color={theme.muted2}
-                strokeWidth={1.75}
-              />
-              <SPText style={[programStyles.metaValue, { color: theme.text }]}>
-                {activeProgram.durationWeeks}w
-              </SPText>
-              <SPText style={[programStyles.metaLabel, { color: theme.muted }]}>
-                Duration
-              </SPText>
-            </View>
-
-            <View
-              style={[
-                programStyles.metaDivider,
-                { backgroundColor: theme.border },
-              ]}
-            />
-
-            <View style={programStyles.metaItem}>
-              <Flame size={rs(16)} color={theme.muted2} strokeWidth={1.75} />
-              <SPText style={[programStyles.metaValue, { color: theme.text }]}>
-                {activeProgram.sessionsPerWeek}×
-              </SPText>
-              <SPText style={[programStyles.metaLabel, { color: theme.muted }]}>
-                Per week
-              </SPText>
-            </View>
-
-            <View
-              style={[
-                programStyles.metaDivider,
-                { backgroundColor: theme.border },
-              ]}
-            />
-
-            <View style={programStyles.metaItem}>
-              <Clock size={rs(16)} color={theme.muted2} strokeWidth={1.75} />
-              <SPText style={[programStyles.metaValue, { color: theme.text }]}>
-                {data.sessionDurationMin ?? "35"}
-              </SPText>
-              <SPText style={[programStyles.metaLabel, { color: theme.muted }]}>
-                Minutes
-              </SPText>
-            </View>
-
-            <View
-              style={[
-                programStyles.metaDivider,
-                { backgroundColor: theme.border },
-              ]}
-            />
-
-            <View style={programStyles.metaItem}>
-              <Dumbbell size={rs(16)} color={theme.muted2} strokeWidth={1.75} />
-              <SPText
-                style={[programStyles.metaValue, { color: theme.text }]}
-                numberOfLines={1}
-                adjustsFontSizeToFit
-              >
-                {data.level.charAt(0) + data.level.slice(1).toLowerCase()}
-              </SPText>
-              <SPText style={[programStyles.metaLabel, { color: theme.muted }]}>
-                Level
-              </SPText>
-            </View>
-          </View>
-
-          {/* ── Insight Card ── */}
-          {!!activeProgram.coachingNote && (
-            <View
-              style={[
-                programStyles.insightCard,
-                {
-                  backgroundColor: theme.accentDim,
-                  borderColor: theme.accent + "26",
-                },
-              ]}
-            >
-              <View
-                style={[
-                  programStyles.insightIconWrap,
-                  { backgroundColor: theme.accent + "1A" },
-                ]}
-              >
-                <Lightbulb
-                  size={rs(15)}
-                  color={theme.accent}
-                  strokeWidth={1.75}
+              {activeProgram.imageUrl ? (
+                <Image
+                  source={{ uri: activeProgram.imageUrl }}
+                  style={StyleSheet.absoluteFill}
+                  contentFit="cover"
+                  transition={300}
                 />
-              </View>
-              <SPText
-                style={{
-                  flex: 1,
-                  color: theme.text,
-                  fontSize: rf(13),
-                  lineHeight: rf(19),
-                  fontFamily: fonts.brandMedium,
-                }}
-              >
-                {activeProgram.coachingNote}
-              </SPText>
-            </View>
-          )}
-        </View>
-      )}
+              ) : (
+                <View
+                  style={[
+                    StyleSheet.absoluteFill,
+                    { backgroundColor: theme.void },
+                  ]}
+                />
+              )}
 
-      {/* ── Program Overview ── */}
-      <View style={programStyles.section}>
-        <View style={programStyles.sectionHeader}>
-          <SPText style={[programStyles.sectionTitle, { color: theme.text }]}>
-            Program Structure
-          </SPText>
-          <Pressable
-            onPress={() => router.push("/(tabs)/programs" as any)}
-            style={programStyles.seeAllBtn}
-            hitSlop={8}
-          >
-            <SPText
-              style={{
-                color: theme.accent,
-                fontSize: rf(13),
-                fontFamily: fonts.brandSemiBold,
-              }}
-            >
-              View all
-            </SPText>
-            <ChevronRight size={rs(14)} color={theme.accent} strokeWidth={2} />
-          </Pressable>
-        </View>
+              {/* Subtle bottom gradient scrim for legibility */}
+              <View style={programStyles.heroScrim} pointerEvents="none" />
 
-        <View style={{ gap: rs(spacing[3]) }}>
-          {data.exercisesForView.slice(0, 4).map((e, i) => (
-            <Pressable
-              key={e.id}
-              style={({ pressed }) => [
-                programStyles.sessionCard,
-                {
-                  backgroundColor: theme.surface,
-                  borderColor: theme.border,
-                  opacity: pressed ? 0.85 : 1,
-                },
-              ]}
-            >
               <View
                 style={[
-                  programStyles.sessionThumb,
-                  { backgroundColor: theme.raised, overflow: "hidden" },
+                  programStyles.heroBadge,
+                  { borderColor: "rgba(255,255,255,0.18)" },
                 ]}
               >
-                {e.exercise.thumbnailUrl ? (
-                  <Image
-                    source={{ uri: e.exercise.thumbnailUrl }}
-                    style={{ width: "100%", height: "100%" }}
-                    contentFit="cover"
-                    transition={200}
-                  />
-                ) : null}
-              </View>
-
-              <View style={programStyles.sessionBody}>
                 <SPText
                   style={{
-                    color: theme.muted,
+                    color: "#fff",
                     fontSize: rf(11),
                     fontFamily: fonts.brandSemiBold,
-                    letterSpacing: 0.6,
-                    marginBottom: rs(4),
+                    letterSpacing: 1,
                   }}
-                  numberOfLines={1}
                 >
-                  SESSION {i + 1} ·{" "}
-                  {(
-                    MUSCLE_LABEL[data.muscleGroup] ?? data.muscleGroup
-                  ).toUpperCase()}{" "}
-                  FOCUS
+                  {activeProgram.durationWeeks} WEEKS
+                </SPText>
+              </View>
+
+              <View style={programStyles.heroTextBlock}>
+                <SPText
+                  style={{
+                    color: "#fff",
+                    fontSize: rf(24),
+                    fontFamily: fonts.brandBold,
+                    lineHeight: rf(30),
+                    letterSpacing: -0.2,
+                    marginBottom: rs(spacing[1] + 2),
+                  }}
+                  numberOfLines={2}
+                >
+                  {activeProgram.name}
                 </SPText>
                 <SPText
                   style={{
-                    color: theme.text,
-                    fontSize: rf(16),
-                    fontFamily: fonts.brandBold,
-                    lineHeight: rf(21),
+                    color: "rgba(255,255,255,0.72)",
+                    fontSize: rf(13),
+                    lineHeight: rf(19),
                   }}
-                  numberOfLines={1}
+                  numberOfLines={2}
                 >
-                  {e.exercise.name}
+                  {activeProgram.description}
                 </SPText>
-                <View style={programStyles.sessionMetaRow}>
-                  <Clock size={rs(12)} color={theme.muted} strokeWidth={2} />
-                  <SPText style={{ color: theme.muted, fontSize: rf(12) }}>
-                    {data.sessionDurationMin ?? "35"} min
-                  </SPText>
-                  <View
-                    style={[
-                      programStyles.sessionMetaDot,
-                      { backgroundColor: theme.border },
-                    ]}
-                  />
-                  <SPText style={{ color: theme.muted, fontSize: rf(12) }}>
-                    {data.exercisesForView.length} exercises
-                  </SPText>
-                </View>
+              </View>
+            </View>
+
+            {/* Metadata row — sits below the image, on surface */}
+            <View
+              style={[
+                programStyles.heroMetaRow,
+                { backgroundColor: theme.surface, borderColor: theme.border },
+              ]}
+            >
+              <View style={programStyles.metaItem}>
+                <CalendarDays
+                  size={rs(16)}
+                  color={theme.muted2}
+                  strokeWidth={1.75}
+                />
+                <SPText
+                  style={[programStyles.metaValue, { color: theme.text }]}
+                >
+                  {activeProgram.durationWeeks}w
+                </SPText>
+                <SPText
+                  style={[programStyles.metaLabel, { color: theme.muted }]}
+                >
+                  Duration
+                </SPText>
               </View>
 
-              <ChevronRight
-                size={rs(18)}
-                color={theme.muted}
-                strokeWidth={1.75}
+              <View
+                style={[
+                  programStyles.metaDivider,
+                  { backgroundColor: theme.border },
+                ]}
               />
-            </Pressable>
-          ))}
-        </View>
-      </View>
 
-      {/* ── Other Programs ── */}
-      {sortedPrograms.length > 1 && (
-        <View style={[programStyles.section, { marginTop: rs(spacing[6]) }]}>
+              <View style={programStyles.metaItem}>
+                <Flame size={rs(16)} color={theme.muted2} strokeWidth={1.75} />
+                <SPText
+                  style={[programStyles.metaValue, { color: theme.text }]}
+                >
+                  {activeProgram.sessionsPerWeek}×
+                </SPText>
+                <SPText
+                  style={[programStyles.metaLabel, { color: theme.muted }]}
+                >
+                  Per week
+                </SPText>
+              </View>
+
+              <View
+                style={[
+                  programStyles.metaDivider,
+                  { backgroundColor: theme.border },
+                ]}
+              />
+
+              <View style={programStyles.metaItem}>
+                <Clock size={rs(16)} color={theme.muted2} strokeWidth={1.75} />
+                <SPText
+                  style={[programStyles.metaValue, { color: theme.text }]}
+                >
+                  {data.sessionDurationMin ?? "35"}
+                </SPText>
+                <SPText
+                  style={[programStyles.metaLabel, { color: theme.muted }]}
+                >
+                  Minutes
+                </SPText>
+              </View>
+
+              <View
+                style={[
+                  programStyles.metaDivider,
+                  { backgroundColor: theme.border },
+                ]}
+              />
+
+              <View style={programStyles.metaItem}>
+                <Dumbbell
+                  size={rs(16)}
+                  color={theme.muted2}
+                  strokeWidth={1.75}
+                />
+                <SPText
+                  style={[programStyles.metaValue, { color: theme.text }]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                >
+                  {data.level.charAt(0) + data.level.slice(1).toLowerCase()}
+                </SPText>
+                <SPText
+                  style={[programStyles.metaLabel, { color: theme.muted }]}
+                >
+                  Level
+                </SPText>
+              </View>
+            </View>
+
+            {/* ── Insight Card ── */}
+            {!!activeProgram.coachingNote && (
+              <View
+                style={[
+                  programStyles.insightCard,
+                  {
+                    backgroundColor: theme.accentDim,
+                    borderColor: theme.accent + "26",
+                  },
+                ]}
+              >
+                <View
+                  style={[
+                    programStyles.insightIconWrap,
+                    { backgroundColor: theme.accent + "1A" },
+                  ]}
+                >
+                  <Lightbulb
+                    size={rs(15)}
+                    color={theme.accent}
+                    strokeWidth={1.75}
+                  />
+                </View>
+                <SPText
+                  style={{
+                    flex: 1,
+                    color: theme.text,
+                    fontSize: rf(13),
+                    lineHeight: rf(19),
+                    fontFamily: fonts.brandMedium,
+                  }}
+                >
+                  {activeProgram.coachingNote}
+                </SPText>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* ── Program Overview ── */}
+        <View style={programStyles.section}>
           <View style={programStyles.sectionHeader}>
             <SPText style={[programStyles.sectionTitle, { color: theme.text }]}>
-              Other Programs
+              Program Structure
             </SPText>
             <Pressable
               onPress={() => router.push("/(tabs)/programs" as any)}
@@ -645,108 +563,241 @@ function ProgramsTab({
             </Pressable>
           </View>
 
-          <FlatList
-            data={sortedPrograms.filter((p) => p.id !== planId)}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ gap: rs(spacing[3]) }}
-            keyExtractor={(p) => p.id}
-            renderItem={({ item: program }) => {
-              const isLocked = isProgramLocked(program);
-              return (
-                <Pressable
-                  onPress={() => !isLocked && onSwitchProgram(program)}
-                  style={({ pressed }) => [
-                    programStyles.otherCard,
-                    {
-                      backgroundColor: theme.surface,
-                      borderColor: theme.border,
-                      opacity: pressed ? 0.9 : 1,
-                    },
+          <View style={{ gap: rs(spacing[3]) }}>
+            {data.exercisesForView.slice(0, 4).map((e, i) => (
+              <Pressable
+                key={e.id}
+                style={({ pressed }) => [
+                  programStyles.sessionCard,
+                  {
+                    backgroundColor: theme.surface,
+                    borderColor: theme.border,
+                    opacity: pressed ? 0.85 : 1,
+                  },
+                ]}
+              >
+                <View
+                  style={[
+                    programStyles.sessionThumb,
+                    { backgroundColor: theme.raised, overflow: "hidden" },
                   ]}
                 >
-                  <View style={programStyles.otherThumbWrap}>
-                    {program.imageUrl ? (
-                      <Image
-                        source={{ uri: program.imageUrl }}
-                        style={StyleSheet.absoluteFill}
-                        contentFit="cover"
-                        transition={200}
-                      />
-                    ) : (
-                      <View
-                        style={[
-                          StyleSheet.absoluteFill,
-                          { backgroundColor: theme.void },
-                        ]}
-                      />
-                    )}
-                    {isLocked && (
-                      <View style={programStyles.lockBadge}>
-                        <SPText
-                          style={{
-                            color: "#fff",
-                            fontSize: rf(10),
-                            fontFamily: fonts.brandSemiBold,
-                            letterSpacing: 0.4,
-                          }}
-                        >
-                          LOCKED
-                        </SPText>
-                      </View>
-                    )}
-                  </View>
+                  {e.exercise.thumbnailUrl ? (
+                    <Image
+                      source={{ uri: e.exercise.thumbnailUrl }}
+                      style={{ width: "100%", height: "100%" }}
+                      contentFit="cover"
+                      transition={200}
+                    />
+                  ) : null}
+                </View>
 
-                  <View style={programStyles.otherBody}>
-                    <SPText
-                      style={{
-                        color: theme.muted,
-                        fontSize: rf(10),
-                        fontFamily: fonts.brandSemiBold,
-                        letterSpacing: 0.8,
-                        marginBottom: rs(3),
-                      }}
-                      numberOfLines={1}
-                    >
-                      {(
-                        MUSCLE_LABEL[program.muscleGroup] ?? program.muscleGroup
-                      ).toUpperCase()}
+                <View style={programStyles.sessionBody}>
+                  <SPText
+                    style={{
+                      color: theme.muted,
+                      fontSize: rf(11),
+                      fontFamily: fonts.brandSemiBold,
+                      letterSpacing: 0.6,
+                      marginBottom: rs(4),
+                    }}
+                    numberOfLines={1}
+                  >
+                    SESSION {i + 1} ·{" "}
+                    {(
+                      MUSCLE_LABEL[data.muscleGroup] ?? data.muscleGroup
+                    ).toUpperCase()}{" "}
+                    FOCUS
+                  </SPText>
+                  <SPText
+                    style={{
+                      color: theme.text,
+                      fontSize: rf(16),
+                      fontFamily: fonts.brandBold,
+                      lineHeight: rf(21),
+                    }}
+                    numberOfLines={1}
+                  >
+                    {e.exercise.name}
+                  </SPText>
+                  <View style={programStyles.sessionMetaRow}>
+                    <Clock size={rs(12)} color={theme.muted} strokeWidth={2} />
+                    <SPText style={{ color: theme.muted, fontSize: rf(12) }}>
+                      {data.sessionDurationMin ?? "35"} min
                     </SPText>
-                    <SPText
-                      style={{
-                        color: theme.text,
-                        fontSize: rf(15),
-                        fontFamily: fonts.brandBold,
-                        lineHeight: rf(20),
-                      }}
-                      numberOfLines={1}
-                    >
-                      {program.name}
-                    </SPText>
-                    <SPText
-                      style={{
-                        color: theme.muted,
-                        fontSize: rf(12),
-                        marginTop: rs(3),
-                      }}
-                    >
-                      {program.durationWeeks}W · {program.sessionsPerWeek}×/WK
+                    <View
+                      style={[
+                        programStyles.sessionMetaDot,
+                        { backgroundColor: theme.border },
+                      ]}
+                    />
+                    <SPText style={{ color: theme.muted, fontSize: rf(12) }}>
+                      {data.exercisesForView.length} exercises
                     </SPText>
                   </View>
-                </Pressable>
-              );
-            }}
-          />
+                </View>
+
+                <ChevronRight
+                  size={rs(18)}
+                  color={theme.muted}
+                  strokeWidth={1.75}
+                />
+              </Pressable>
+            ))}
+          </View>
         </View>
-      )}
 
-      {/* ── Sticky-feel CTA (inline, end of scroll) ── */}
-      <View style={programStyles.ctaWrap}>
-        <SPButton variant="primary" onPress={onStartNow}>
-          Start Program
-        </SPButton>
-      </View>
-    </ScrollView>
+        {/* ── Other Programs ── */}
+        {sortedPrograms.length > 1 && (
+          <View style={[programStyles.section, { marginTop: rs(spacing[6]) }]}>
+            <View style={programStyles.sectionHeader}>
+              <SPText
+                style={[programStyles.sectionTitle, { color: theme.text }]}
+              >
+                Other Programs
+              </SPText>
+              <Pressable
+                onPress={() => router.push("/(tabs)/programs" as any)}
+                style={programStyles.seeAllBtn}
+                hitSlop={8}
+              >
+                <SPText
+                  style={{
+                    color: theme.accent,
+                    fontSize: rf(13),
+                    fontFamily: fonts.brandSemiBold,
+                  }}
+                >
+                  View all
+                </SPText>
+                <ChevronRight
+                  size={rs(14)}
+                  color={theme.accent}
+                  strokeWidth={2}
+                />
+              </Pressable>
+            </View>
+
+            <FlatList
+              data={sortedPrograms.filter((p) => p.id !== planId)}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: rs(spacing[3]) }}
+              keyExtractor={(p) => p.id}
+              renderItem={({ item: program }) => {
+                const isLocked = isProgramLocked(program);
+                return (
+                  <Pressable
+                    onPress={() =>
+                      isLocked
+                        ? setShowUpgradePrompt(true)
+                        : onSwitchProgram(program)
+                    }
+                    style={({ pressed }) => [
+                      programStyles.otherCard,
+                      {
+                        backgroundColor: theme.surface,
+                        borderColor: theme.border,
+                        opacity: pressed ? 0.9 : 1,
+                      },
+                    ]}
+                  >
+                    <View style={programStyles.otherThumbWrap}>
+                      {program.imageUrl ? (
+                        <Image
+                          source={{ uri: program.imageUrl }}
+                          style={StyleSheet.absoluteFill}
+                          contentFit="cover"
+                          transition={200}
+                        />
+                      ) : (
+                        <View
+                          style={[
+                            StyleSheet.absoluteFill,
+                            { backgroundColor: theme.void },
+                          ]}
+                        />
+                      )}
+                      {isLocked && (
+                        <View style={programStyles.lockOverlay}>
+                          <View style={programStyles.lockIconWrap}>
+                            <Lock size={rs(18)} color="#fff" strokeWidth={2} />
+                          </View>
+                          <SPText
+                            style={{
+                              color: "#fff",
+                              fontSize: rf(12),
+                              fontFamily: fonts.brandSemiBold,
+                              letterSpacing: 0.2,
+                              textAlign: "center",
+                              marginTop: rs(spacing[1] + 2),
+                              paddingHorizontal: rs(spacing[2]),
+                            }}
+                          >
+                            Go Pro to Unlock
+                          </SPText>
+                        </View>
+                      )}
+                    </View>
+
+                    <View style={programStyles.otherBody}>
+                      <SPText
+                        style={{
+                          color: theme.muted,
+                          fontSize: rf(10),
+                          fontFamily: fonts.brandSemiBold,
+                          letterSpacing: 0.8,
+                          marginBottom: rs(3),
+                        }}
+                        numberOfLines={1}
+                      >
+                        {(
+                          MUSCLE_LABEL[program.muscleGroup] ??
+                          program.muscleGroup
+                        ).toUpperCase()}
+                      </SPText>
+                      <SPText
+                        style={{
+                          color: theme.text,
+                          fontSize: rf(15),
+                          fontFamily: fonts.brandBold,
+                          lineHeight: rf(20),
+                        }}
+                        numberOfLines={1}
+                      >
+                        {program.name}
+                      </SPText>
+                      <SPText
+                        style={{
+                          color: theme.muted,
+                          fontSize: rf(12),
+                          marginTop: rs(3),
+                        }}
+                      >
+                        {program.durationWeeks}W · {program.sessionsPerWeek}×/WK
+                      </SPText>
+                    </View>
+                  </Pressable>
+                );
+              }}
+            />
+          </View>
+        )}
+
+        {/* ── Sticky-feel CTA (inline, end of scroll) ── */}
+        <View style={programStyles.ctaWrap}>
+          <SPButton variant="primary" onPress={onStartNow}>
+            Start Program
+          </SPButton>
+        </View>
+      </ScrollView>
+
+      <UpgradePrompt
+        trigger="upgrade_required"
+        open={showUpgradePrompt}
+        onClose={() => setShowUpgradePrompt(false)}
+      />
+    </>
   );
 }
 
@@ -900,14 +951,23 @@ const programStyles = StyleSheet.create({
     backgroundColor: "#0C0E10",
     position: "relative",
   },
-  lockBadge: {
+  lockOverlay: {
     position: "absolute",
-    top: rs(spacing[2]),
-    right: rs(spacing[2]),
-    backgroundColor: "rgba(10,10,10,0.65)",
-    borderRadius: rs(radii.full),
-    paddingVertical: rs(4),
-    paddingHorizontal: rs(spacing[2]),
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(10,10,10,0.72)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  lockIconWrap: {
+    width: rs(36),
+    height: rs(36),
+    borderRadius: rs(18),
+    backgroundColor: "rgba(255,255,255,0.16)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   otherBody: {
     padding: rs(spacing[3]),

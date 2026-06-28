@@ -43,6 +43,7 @@ import {
 import { SPText } from "../components/ui/SPText";
 import { SPButton } from "../components/ui/SPButton";
 import { SPIcon } from "../components/icons/SPIcon";
+import UpgradePrompt, { UpgradeTrigger } from "../components/ui/Upgradeprompts";
 import { useAppTheme } from "../theme/ThemeContext";
 import { useTabBarHeight } from "../hooks/Usetabbarheight";
 import { api } from "../lib/api";
@@ -278,6 +279,16 @@ const LOCK_LABEL: Record<LockReason, string> = {
   upgrade_required: "Pro required",
   no_equipment_match: "Different gear needed",
 };
+
+// computePlanLocks (lib/programaccess.ts) only ever returns trial_expired,
+// cap_reached, equipment_required, or upgrade_required — those map 1:1 onto
+// UpgradePrompt's UpgradeTrigger. "no_equipment_match" is legacy/dead on the
+// backend but kept here defensively; it shows the generic upgrade_required
+// messaging rather than crashing on an unmapped trigger.
+function toUpgradeTrigger(reason: LockReason): UpgradeTrigger {
+  if (reason === "no_equipment_match") return "upgrade_required";
+  return reason;
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -1808,6 +1819,9 @@ export function ProgramsScreen() {
   const [activating, setActivating] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [localIdentity, setLocalIdentity] = useState<Identity | null>(null);
+  const [upgradeTrigger, setUpgradeTrigger] = useState<UpgradeTrigger | null>(
+    null,
+  );
 
   useEffect(() => {
     AsyncStorage.getItem("user_identity").then((val) => {
@@ -2039,7 +2053,7 @@ export function ProgramsScreen() {
                   key={plan.id}
                   plan={plan}
                   reason={reason}
-                  onUpgrade={handleUpgrade}
+                  onUpgrade={() => setUpgradeTrigger(toUpgradeTrigger(reason))}
                   index={i}
                   theme={theme}
                 />
@@ -2069,6 +2083,14 @@ export function ProgramsScreen() {
           onClose={() => setPendingPlan(null)}
           loading={activating === pendingPlan.id}
           theme={theme}
+        />
+      )}
+
+      {upgradeTrigger && (
+        <UpgradePrompt
+          trigger={upgradeTrigger}
+          open={!!upgradeTrigger}
+          onClose={() => setUpgradeTrigger(null)}
         />
       )}
     </View>
