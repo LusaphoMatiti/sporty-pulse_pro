@@ -124,6 +124,13 @@ export function getUserProfile() {
   return api.get("/api/user/profile");
 }
 
+export function checkPurchasedEquipment() {
+  return api.get<{
+    purchasedEquipment: { id: string; name: string }[];
+    showModal: boolean;
+  }>("/api/onboarding/check-purchases");
+}
+
 /** Activate a program — calls /api/programs/activate via resolveProgram */
 export function activateProgram(
   planId: string,

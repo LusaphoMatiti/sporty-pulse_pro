@@ -26,7 +26,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SPText } from "../../components/ui/SPText";
 import { SPIcon, IconName } from "../../components/icons/SPIcon";
 import { getEquipmentIcon } from "../../components/icons/Empticons";
-import { api, getEquipment } from "../../lib/api";
+import { api, getEquipment, checkPurchasedEquipment } from "../../lib/api";
 import { spring } from "../../theme";
 import {
   Dumbbell,
@@ -187,13 +187,17 @@ type StepName =
 function buildStepList(
   trainingLocation: string,
   hasEquipment: boolean | null,
+  hasPurchasedEquipment: boolean,
 ): StepName[] {
-  const steps: StepName[] = ["goal", "location", "sex"];
-  if (trainingLocation === "HOME") {
-    steps.push("hasEquipment");
-    if (hasEquipment === true) steps.push("pickEquipment");
+  const steps: StepName[] = ["goal"];
+  if (!hasPurchasedEquipment) {
+    steps.push("location");
+    if (trainingLocation === "HOME") {
+      steps.push("hasEquipment");
+      if (hasEquipment === true) steps.push("pickEquipment");
+    }
   }
-  steps.push("experience", "identity", "confirm");
+  steps.push("sex", "experience", "identity", "confirm");
   return steps;
 }
 
@@ -825,6 +829,72 @@ const trialStyles = StyleSheet.create({
     fontSize: 13,
     color: T.muted2,
     lineHeight: 18,
+  },
+});
+
+// ─── Purchase notice modal ─────────────────────────────────────────────────────
+
+function PurchaseNoticeModal({
+  equipment,
+  onDismiss,
+}: {
+  equipment: { id: string; name: string }[];
+  onDismiss: () => void;
+}) {
+  const names = equipment.map((e) => e.name).join(", ");
+  return (
+    <View style={purchaseModalStyles.overlay}>
+      <View style={purchaseModalStyles.card}>
+        <View style={trialStyles.shieldRing}>
+          <View style={trialStyles.shieldCore}>
+            <Dumbbell size={18} color={T.accent} strokeWidth={1.75} />
+          </View>
+        </View>
+        <SPText style={trialStyles.eyebrow}>ALREADY EQUIPPED</SPText>
+        <SPText style={purchaseModalStyles.heading}>
+          We found your purchase
+        </SPText>
+        <SPText style={purchaseModalStyles.body}>
+          {names} is already linked to your account, so we've skipped the
+          equipment questions below.
+        </SPText>
+        <OnboardingCTA label="GOT IT" onPress={onDismiss} />
+      </View>
+    </View>
+  );
+}
+
+const purchaseModalStyles = StyleSheet.create({
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(12,14,16,0.78)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: T.s24,
+    zIndex: 10,
+  },
+  card: {
+    width: "100%",
+    maxWidth: 360,
+    backgroundColor: "rgba(19,23,26,0.96)",
+    borderWidth: 1,
+    borderColor: T.border,
+    borderRadius: T.r16,
+    padding: T.s24,
+    gap: T.s8,
+    alignItems: "flex-start",
+  },
+  heading: {
+    fontFamily: "Barlow-SemiBold",
+    fontSize: 18,
+    color: T.text,
+    marginTop: T.s4,
+  },
+  body: {
+    fontFamily: "Barlow-Regular",
+    fontSize: 13,
+    color: T.muted2,
+    marginBottom: T.s16,
   },
 });
 
@@ -1477,6 +1547,12 @@ export function OnboardingScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
+  const [purchasedEquipment, setPurchasedEquipment] = useState<
+    { id: string; name: string }[]
+  >([]);
+  const [purchaseModalVisible, setPurchaseModalVisible] = useState(false);
+  const [checkingPurchases, setCheckingPurchases] = useState(true);
+
   // Identity state (Phase 4)
   const [assignedIdentity, setAssignedIdentity] = useState<Identity | null>(
     null,
@@ -1484,7 +1560,28 @@ export function OnboardingScreen() {
   const [identityLoading, setIdentityLoading] = useState(false);
   const [identityError, setIdentityError] = useState(false);
 
-  const stepList = buildStepList(answers.trainingLocation, hasEquipment);
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await checkPurchasedEquipment();
+        if (res?.purchasedEquipment?.length) {
+          setPurchasedEquipment(res.purchasedEquipment);
+          setAnswer("trainingLocation", "HOME");
+          if (res.showModal) setPurchaseModalVisible(true);
+        }
+      } catch {
+        // fail-safe: proceed as if no purchases were found
+      } finally {
+        setCheckingPurchases(false);
+      }
+    })();
+  }, []);
+
+  const stepList = buildStepList(
+    answers.trainingLocation,
+    hasEquipment,
+    purchasedEquipment.length > 0,
+  );
   const [currentStep, setCurrentStep] = useState<StepName>("goal");
 
   const currentIndex = stepList.indexOf(currentStep);
@@ -1655,423 +1752,462 @@ export function OnboardingScreen() {
   const selectedEquipment = equipmentList.find(
     (e) => e.id === answers.equipmentId,
   );
+  const displayedEquipmentName =
+    purchasedEquipment[0]?.name ?? selectedEquipment?.name ?? null;
 
   // ── Confirm screen — full-bleed background image ─────────────────────────────
+  if (checkingPurchases) {
+    return (
+      <View
+        style={[
+          styles.fill,
+          { alignItems: "center", justifyContent: "center" },
+        ]}
+      >
+        <ActivityIndicator color={T.accent} />
+      </View>
+    );
+  }
+
   if (currentStep === "confirm") {
     const statChips = [
       LOCATION_LABEL[answers.trainingLocation]?.toUpperCase(),
       LEVEL_LABEL[answers.experienceLevel]?.toUpperCase(),
       answers.trainingLocation === "HOME"
-        ? (selectedEquipment?.name ?? "Bodyweight").toUpperCase()
+        ? (displayedEquipmentName ?? "Bodyweight").toUpperCase()
         : null,
     ].filter(Boolean) as string[];
 
     return (
-      <View style={styles.fill}>
-        <View
-          style={[
-            styles.confirmInner,
-            {
-              paddingTop: insets.top + T.s8,
-              paddingBottom: insets.bottom + T.s24,
-            },
-          ]}
-        >
-          <HeaderBar
-            currentIndex={currentIndex}
-            total={totalSteps}
-            onBack={goBack}
+      <>
+        {purchaseModalVisible && (
+          <PurchaseNoticeModal
+            equipment={purchasedEquipment}
+            onDismiss={() => setPurchaseModalVisible(false)}
           />
-
-          <ScrollView
-            style={styles.fill}
-            contentContainerStyle={styles.confirmScrollContent}
-            showsVerticalScrollIndicator={false}
+        )}
+        <View style={styles.fill}>
+          <View
+            style={[
+              styles.confirmInner,
+              {
+                paddingTop: insets.top + T.s8,
+                paddingBottom: insets.bottom + T.s24,
+              },
+            ]}
           >
-            <View style={styles.confirmTitleWrap}>
-              <SPText style={confirmScreenStyles.allSet}>
-                You're ready
-                <SPText
-                  style={[confirmScreenStyles.allSet, { color: T.accent }]}
-                >
-                  .
+            <HeaderBar
+              currentIndex={currentIndex}
+              total={totalSteps}
+              onBack={goBack}
+            />
+
+            <ScrollView
+              style={styles.fill}
+              contentContainerStyle={styles.confirmScrollContent}
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={styles.confirmTitleWrap}>
+                <SPText style={confirmScreenStyles.allSet}>
+                  You're ready
+                  <SPText
+                    style={[confirmScreenStyles.allSet, { color: T.accent }]}
+                  >
+                    .
+                  </SPText>
                 </SPText>
-              </SPText>
-              <SPText style={confirmScreenStyles.profileLabel}>
-                Your training system is ready.
-              </SPText>
-            </View>
+                <SPText style={confirmScreenStyles.profileLabel}>
+                  Your training system is ready.
+                </SPText>
+              </View>
 
-            {assignedIdentity && (
-              <ProgramIdentityCard
-                identity={assignedIdentity}
-                statChips={statChips}
-              />
-            )}
-
-            <View style={styles.summaryCard}>
-              <ProfileSnapshotRow
-                IconComponent={Target}
-                label="Goal"
-                value={GOAL_LABEL[answers.primaryGoal] ?? "—"}
-                onEdit={() => {
-                  animateToStep(-1);
-                  setCurrentStep("goal");
-                }}
-              />
-              <ProfileSnapshotRow
-                IconComponent={Home}
-                label="Training location"
-                value={LOCATION_LABEL[answers.trainingLocation] ?? "—"}
-                onEdit={() => {
-                  animateToStep(-1);
-                  setCurrentStep("location");
-                }}
-              />
-              <ProfileSnapshotRow
-                IconComponent={User}
-                label="Biological sex"
-                value={SEX_LABEL[answers.biologicalSex] ?? "—"}
-                onEdit={() => {
-                  animateToStep(-1);
-                  setCurrentStep("sex");
-                }}
-              />
-              {answers.trainingLocation === "HOME" && (
-                <ProfileSnapshotRow
-                  IconComponent={Dumbbell}
-                  label="Equipment"
-                  value={selectedEquipment?.name ?? "Bodyweight only"}
-                  onEdit={() => {
-                    animateToStep(-1);
-                    setCurrentStep("hasEquipment");
-                  }}
+              {assignedIdentity && (
+                <ProgramIdentityCard
+                  identity={assignedIdentity}
+                  statChips={statChips}
                 />
               )}
-              <ProfileSnapshotRow
-                IconComponent={BarChart3}
-                label="Experience"
-                value={LEVEL_LABEL[answers.experienceLevel] ?? "—"}
-                onEdit={() => {
-                  animateToStep(-1);
-                  setCurrentStep("experience");
-                }}
-                isLast
+
+              <View style={styles.summaryCard}>
+                <ProfileSnapshotRow
+                  IconComponent={Target}
+                  label="Goal"
+                  value={GOAL_LABEL[answers.primaryGoal] ?? "—"}
+                  onEdit={() => {
+                    animateToStep(-1);
+                    setCurrentStep("goal");
+                  }}
+                />
+                <ProfileSnapshotRow
+                  IconComponent={Home}
+                  label="Training location"
+                  value={LOCATION_LABEL[answers.trainingLocation] ?? "—"}
+                  onEdit={() => {
+                    animateToStep(-1);
+                    setCurrentStep("location");
+                  }}
+                />
+                <ProfileSnapshotRow
+                  IconComponent={User}
+                  label="Biological sex"
+                  value={SEX_LABEL[answers.biologicalSex] ?? "—"}
+                  onEdit={() => {
+                    animateToStep(-1);
+                    setCurrentStep("sex");
+                  }}
+                />
+                {answers.trainingLocation === "HOME" && (
+                  <ProfileSnapshotRow
+                    IconComponent={Dumbbell}
+                    label="Equipment"
+                    value={displayedEquipmentName ?? "Bodyweight only"}
+                    onEdit={
+                      purchasedEquipment.length > 0
+                        ? undefined
+                        : () => {
+                            animateToStep(-1);
+                            setCurrentStep("hasEquipment");
+                          }
+                    }
+                  />
+                )}
+                <ProfileSnapshotRow
+                  IconComponent={BarChart3}
+                  label="Experience"
+                  value={LEVEL_LABEL[answers.experienceLevel] ?? "—"}
+                  onEdit={() => {
+                    animateToStep(-1);
+                    setCurrentStep("experience");
+                  }}
+                  isLast
+                />
+              </View>
+
+              {selectedEquipment && (
+                <TrialNotice equipmentName={selectedEquipment.name} />
+              )}
+
+              {error ? (
+                <View style={[styles.errorBox, { marginTop: T.s8 }]}>
+                  <SPIcon name="warning" size={14} color={T.danger} />
+                  <SPText style={styles.errorText}>{error}</SPText>
+                </View>
+              ) : null}
+            </ScrollView>
+
+            <View style={styles.confirmActions}>
+              <OnboardingCTA
+                label="START MY PLAN"
+                onPress={handleComplete}
+                loading={submitting}
               />
             </View>
-
-            {selectedEquipment && (
-              <TrialNotice equipmentName={selectedEquipment.name} />
-            )}
-
-            {error ? (
-              <View style={[styles.errorBox, { marginTop: T.s8 }]}>
-                <SPIcon name="warning" size={14} color={T.danger} />
-                <SPText style={styles.errorText}>{error}</SPText>
-              </View>
-            ) : null}
-          </ScrollView>
-
-          <View style={styles.confirmActions}>
-            <OnboardingCTA
-              label="START MY PLAN"
-              onPress={handleComplete}
-              loading={submitting}
-            />
           </View>
         </View>
-      </View>
+      </>
     );
   }
 
   // ── All other steps ───────────────────────────────────────────────────────────
   return (
-    <View style={[styles.fill, { paddingTop: insets.top }]}>
-      <HeaderBar
-        currentIndex={currentIndex}
-        total={totalSteps}
-        onBack={goBack}
-      />
+    <>
+      {purchaseModalVisible && (
+        <PurchaseNoticeModal
+          equipment={purchasedEquipment}
+          onDismiss={() => setPurchaseModalVisible(false)}
+        />
+      )}
+      <View style={[styles.fill, { paddingTop: insets.top }]}>
+        <HeaderBar
+          currentIndex={currentIndex}
+          total={totalSteps}
+          onBack={goBack}
+        />
 
-      <ScrollView
-        style={styles.fill}
-        contentContainerStyle={[
-          styles.content,
-          { paddingBottom: insets.bottom + T.s32 },
-        ]}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
-        <Animated.View style={[{ gap: T.s24 }, slideStyle]}>
-          {/* ── STEP: Goal ──────────────────────────────────────────── */}
-          {currentStep === "goal" && (
-            <View style={styles.stepContent}>
-              <HeroImage source={require("../../../assets/images/goal.png")} />
-              <StepHeader
-                title={"What's your\nmain goal?"}
-                subtitle="This helps us build the right programs for you."
-              />
-              <View style={styles.options}>
-                {(
-                  [
-                    {
-                      value: "LOSE_WEIGHT",
-                      label: "Lose Weight",
-                      sublabel: "Burn fat and improve body composition",
-                      iconName: "flame",
-                      lucideIcon: Flame,
-                    },
-                    {
-                      value: "BUILD_MUSCLE",
-                      label: "Build Muscle",
-                      sublabel: "Increase strength and muscle mass",
-                      iconName: "dumbbell",
-                      lucideIcon: Shield,
-                    },
-                    {
-                      value: "GET_FIT",
-                      label: "Get Fit",
-                      sublabel: "Improve overall fitness and endurance",
-                      iconName: "heart",
-                      lucideIcon: HeartPulse,
-                    },
-                  ] as Option[]
-                ).map((opt) => (
-                  <OptionCard
-                    key={opt.value}
-                    option={opt}
-                    selected={answers.primaryGoal === opt.value}
-                    onPress={() => setAnswer("primaryGoal", opt.value)}
-                  />
-                ))}
-              </View>
-            </View>
-          )}
-
-          {/* ── STEP: Location ──────────────────────────────────────── */}
-          {currentStep === "location" && (
-            <View style={styles.stepContent}>
-              <StepHeader
-                title={"Where do\nyou train?"}
-                subtitle="We'll match plans to your setup."
-              />
-              <View style={styles.options}>
-                <ImageOptionCard
-                  option={{
-                    value: "HOME",
-                    label: "Home",
-                    sublabel: "Bodyweight and home equipment",
-                    iconName: "home",
-                    image: require("../../../assets/images/home.png"),
-                  }}
-                  selected={answers.trainingLocation === "HOME"}
-                  onPress={() => handleLocationSelect("HOME")}
+        <ScrollView
+          style={styles.fill}
+          contentContainerStyle={[
+            styles.content,
+            { paddingBottom: insets.bottom + T.s32 },
+          ]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <Animated.View style={[{ gap: T.s24 }, slideStyle]}>
+            {/* ── STEP: Goal ──────────────────────────────────────────── */}
+            {currentStep === "goal" && (
+              <View style={styles.stepContent}>
+                <HeroImage
+                  source={require("../../../assets/images/goal.png")}
                 />
-                <ImageOptionCard
-                  option={{
-                    value: "GYM",
-                    label: "Gym",
-                    sublabel: "Full equipment access",
-                    iconName: "dumbbell",
-                    lucideIcon: Building2,
-                    image: require("../../../assets/images/gym.png"),
-                  }}
-                  selected={answers.trainingLocation === "GYM"}
-                  onPress={() => handleLocationSelect("GYM")}
+                <StepHeader
+                  title={"What's your\nmain goal?"}
+                  subtitle="This helps us build the right programs for you."
                 />
-              </View>
-            </View>
-          )}
-
-          {/* ── STEP: Biological Sex ────────────────────────────────── */}
-          {currentStep === "sex" && (
-            <View style={styles.stepContent}>
-              <StepHeader
-                eyebrow="Used for training recommendations"
-                title="Gender?"
-              />
-              <View style={styles.options}>
-                {(
-                  [
-                    {
-                      value: "MALE",
-                      label: "Male",
-                      iconName: "person",
-                      lucideIcon: Mars,
-                    },
-                    {
-                      value: "FEMALE",
-                      label: "Female",
-                      iconName: "person",
-                      lucideIcon: Venus,
-                    },
-                    {
-                      value: "NOT_SPECIFIED",
-                      label: "Prefer not to say",
-                      iconName: "ellipsis",
-                      lucideIcon: MoreHorizontal,
-                    },
-                  ] as Option[]
-                ).map((opt) => (
-                  <OptionCard
-                    key={opt.value}
-                    option={opt}
-                    selected={answers.biologicalSex === opt.value}
-                    onPress={() => setAnswer("biologicalSex", opt.value)}
-                  />
-                ))}
-              </View>
-            </View>
-          )}
-
-          {/* ── STEP: Has Equipment? (HOME only) ────────────────────── */}
-          {currentStep === "hasEquipment" && (
-            <View style={styles.stepContent}>
-              <StepHeader
-                title={"Do you have\nequipment?"}
-                subtitle="If you own home gym equipment you'll get a 14-day free trial to access matching programs."
-              />
-              <View style={styles.options}>
-                <OptionCard
-                  option={{
-                    value: "yes",
-                    label: "Yes, I have equipment",
-                    sublabel: "Get a 14-day trial for equipment programs.",
-                    iconName: "dumbbell",
-                    lucideIcon: Dumbbell,
-                  }}
-                  selected={hasEquipment === true}
-                  onPress={() => handleHasEquipmentSelect(true)}
-                />
-                <OptionCard
-                  option={{
-                    value: "no",
-                    label: "Bodyweight only",
-                    sublabel: "Free forever — no equipment needed.",
-                    iconName: "fitness",
-                    lucideIcon: PersonStanding,
-                  }}
-                  selected={hasEquipment === false}
-                  onPress={() => handleHasEquipmentSelect(false)}
-                />
-              </View>
-            </View>
-          )}
-
-          {/* ── STEP: Pick Equipment (HOME + yes) ───────────────────── */}
-          {currentStep === "pickEquipment" && (
-            <View style={styles.stepContent}>
-              <StepHeader
-                eyebrow="Select your primary equipment"
-                title={"What do you\ntrain with?"}
-                subtitle="Choose the main piece of equipment you use at home. You'll get a 14-day trial to unlock matching programs."
-              />
-
-              {equipmentLoading && (
-                <View style={styles.loadingWrap}>
-                  <ActivityIndicator color={T.accent} size="small" />
-                  <SPText style={styles.loadingText}>Loading equipment…</SPText>
-                </View>
-              )}
-
-              {equipmentError && !equipmentLoading && (
-                <View style={styles.errorBox}>
-                  <SPIcon name="warning" size={14} color={T.danger} />
-                  <SPText style={styles.errorText}>
-                    Could not load equipment.
-                  </SPText>
-                  <Pressable onPress={fetchEquipment} hitSlop={8}>
-                    <SPText style={styles.retryText}>Retry</SPText>
-                  </Pressable>
-                </View>
-              )}
-
-              {!equipmentLoading && !equipmentError && (
                 <View style={styles.options}>
-                  {equipmentList.map((item) => (
-                    <EquipmentRow
-                      key={item.id}
-                      item={item}
-                      selected={answers.equipmentId === item.id}
-                      onPress={() => setAnswer("equipmentId", item.id)}
+                  {(
+                    [
+                      {
+                        value: "LOSE_WEIGHT",
+                        label: "Lose Weight",
+                        sublabel: "Burn fat and improve body composition",
+                        iconName: "flame",
+                        lucideIcon: Flame,
+                      },
+                      {
+                        value: "BUILD_MUSCLE",
+                        label: "Build Muscle",
+                        sublabel: "Increase strength and muscle mass",
+                        iconName: "dumbbell",
+                        lucideIcon: Shield,
+                      },
+                      {
+                        value: "GET_FIT",
+                        label: "Get Fit",
+                        sublabel: "Improve overall fitness and endurance",
+                        iconName: "heart",
+                        lucideIcon: HeartPulse,
+                      },
+                    ] as Option[]
+                  ).map((opt) => (
+                    <OptionCard
+                      key={opt.value}
+                      option={opt}
+                      selected={answers.primaryGoal === opt.value}
+                      onPress={() => setAnswer("primaryGoal", opt.value)}
                     />
                   ))}
                 </View>
-              )}
-            </View>
-          )}
-
-          {/* ── STEP: Experience Level ───────────────────────────────── */}
-          {currentStep === "experience" && (
-            <View style={styles.stepContent}>
-              <StepHeader
-                eyebrow="We'll set the right intensity"
-                title={"Your experience\nlevel?"}
-              />
-              <View style={styles.options}>
-                {(
-                  [
-                    {
-                      value: "BEGINNER",
-                      label: "Beginner",
-                      sublabel: "Less than 1 year of consistent training",
-                      iconName: "seedling",
-                      lucideIcon: Sprout,
-                    },
-                    {
-                      value: "INTERMEDIATE",
-                      label: "Intermediate",
-                      sublabel: "1–3 years, comfortable with the basics",
-                      iconName: "chart",
-                      lucideIcon: TrendingUp,
-                    },
-                    {
-                      value: "ADVANCED",
-                      label: "Advanced",
-                      sublabel: "3+ years, training is a lifestyle",
-                      iconName: "trophy",
-                      lucideIcon: Crown,
-                    },
-                  ] as Option[]
-                ).map((opt) => (
-                  <OptionCard
-                    key={opt.value}
-                    option={opt}
-                    selected={answers.experienceLevel === opt.value}
-                    onPress={() => setAnswer("experienceLevel", opt.value)}
-                  />
-                ))}
               </View>
-            </View>
-          )}
+            )}
 
-          {/* ── STEP: Identity Reveal (NEW — Phase 4) ───────────────── */}
-          {currentStep === "identity" && (
-            <View style={styles.stepContent}>
-              <IdentityRevealStep
-                identity={assignedIdentity}
-                loading={identityLoading}
-                error={identityError}
-                onRetry={assignIdentity}
+            {/* ── STEP: Location ──────────────────────────────────────── */}
+            {currentStep === "location" && (
+              <View style={styles.stepContent}>
+                <StepHeader
+                  title={"Where do\nyou train?"}
+                  subtitle="We'll match plans to your setup."
+                />
+                <View style={styles.options}>
+                  <ImageOptionCard
+                    option={{
+                      value: "HOME",
+                      label: "Home",
+                      sublabel: "Bodyweight and home equipment",
+                      iconName: "home",
+                      image: require("../../../assets/images/home.png"),
+                    }}
+                    selected={answers.trainingLocation === "HOME"}
+                    onPress={() => handleLocationSelect("HOME")}
+                  />
+                  <ImageOptionCard
+                    option={{
+                      value: "GYM",
+                      label: "Gym",
+                      sublabel: "Full equipment access",
+                      iconName: "dumbbell",
+                      lucideIcon: Building2,
+                      image: require("../../../assets/images/gym.png"),
+                    }}
+                    selected={answers.trainingLocation === "GYM"}
+                    onPress={() => handleLocationSelect("GYM")}
+                  />
+                </View>
+              </View>
+            )}
+
+            {/* ── STEP: Biological Sex ────────────────────────────────── */}
+            {currentStep === "sex" && (
+              <View style={styles.stepContent}>
+                <StepHeader
+                  eyebrow="Used for training recommendations"
+                  title="Gender?"
+                />
+                <View style={styles.options}>
+                  {(
+                    [
+                      {
+                        value: "MALE",
+                        label: "Male",
+                        iconName: "person",
+                        lucideIcon: Mars,
+                      },
+                      {
+                        value: "FEMALE",
+                        label: "Female",
+                        iconName: "person",
+                        lucideIcon: Venus,
+                      },
+                      {
+                        value: "NOT_SPECIFIED",
+                        label: "Prefer not to say",
+                        iconName: "ellipsis",
+                        lucideIcon: MoreHorizontal,
+                      },
+                    ] as Option[]
+                  ).map((opt) => (
+                    <OptionCard
+                      key={opt.value}
+                      option={opt}
+                      selected={answers.biologicalSex === opt.value}
+                      onPress={() => setAnswer("biologicalSex", opt.value)}
+                    />
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {/* ── STEP: Has Equipment? (HOME only) ────────────────────── */}
+            {currentStep === "hasEquipment" && (
+              <View style={styles.stepContent}>
+                <StepHeader
+                  title={"Do you have\nequipment?"}
+                  subtitle="If you own home gym equipment you'll get a 14-day free trial to access matching programs."
+                />
+                <View style={styles.options}>
+                  <OptionCard
+                    option={{
+                      value: "yes",
+                      label: "Yes, I have equipment",
+                      sublabel: "Get a 14-day trial for equipment programs.",
+                      iconName: "dumbbell",
+                      lucideIcon: Dumbbell,
+                    }}
+                    selected={hasEquipment === true}
+                    onPress={() => handleHasEquipmentSelect(true)}
+                  />
+                  <OptionCard
+                    option={{
+                      value: "no",
+                      label: "Bodyweight only",
+                      sublabel: "Free forever — no equipment needed.",
+                      iconName: "fitness",
+                      lucideIcon: PersonStanding,
+                    }}
+                    selected={hasEquipment === false}
+                    onPress={() => handleHasEquipmentSelect(false)}
+                  />
+                </View>
+              </View>
+            )}
+
+            {/* ── STEP: Pick Equipment (HOME + yes) ───────────────────── */}
+            {currentStep === "pickEquipment" && (
+              <View style={styles.stepContent}>
+                <StepHeader
+                  eyebrow="Select your primary equipment"
+                  title={"What do you\ntrain with?"}
+                  subtitle="Choose the main piece of equipment you use at home. You'll get a 14-day trial to unlock matching programs."
+                />
+
+                {equipmentLoading && (
+                  <View style={styles.loadingWrap}>
+                    <ActivityIndicator color={T.accent} size="small" />
+                    <SPText style={styles.loadingText}>
+                      Loading equipment…
+                    </SPText>
+                  </View>
+                )}
+
+                {equipmentError && !equipmentLoading && (
+                  <View style={styles.errorBox}>
+                    <SPIcon name="warning" size={14} color={T.danger} />
+                    <SPText style={styles.errorText}>
+                      Could not load equipment.
+                    </SPText>
+                    <Pressable onPress={fetchEquipment} hitSlop={8}>
+                      <SPText style={styles.retryText}>Retry</SPText>
+                    </Pressable>
+                  </View>
+                )}
+
+                {!equipmentLoading && !equipmentError && (
+                  <View style={styles.options}>
+                    {equipmentList.map((item) => (
+                      <EquipmentRow
+                        key={item.id}
+                        item={item}
+                        selected={answers.equipmentId === item.id}
+                        onPress={() => setAnswer("equipmentId", item.id)}
+                      />
+                    ))}
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* ── STEP: Experience Level ───────────────────────────────── */}
+            {currentStep === "experience" && (
+              <View style={styles.stepContent}>
+                <StepHeader
+                  eyebrow="We'll set the right intensity"
+                  title={"Your experience\nlevel?"}
+                />
+                <View style={styles.options}>
+                  {(
+                    [
+                      {
+                        value: "BEGINNER",
+                        label: "Beginner",
+                        sublabel: "Less than 1 year of consistent training",
+                        iconName: "seedling",
+                        lucideIcon: Sprout,
+                      },
+                      {
+                        value: "INTERMEDIATE",
+                        label: "Intermediate",
+                        sublabel: "1–3 years, comfortable with the basics",
+                        iconName: "chart",
+                        lucideIcon: TrendingUp,
+                      },
+                      {
+                        value: "ADVANCED",
+                        label: "Advanced",
+                        sublabel: "3+ years, training is a lifestyle",
+                        iconName: "trophy",
+                        lucideIcon: Crown,
+                      },
+                    ] as Option[]
+                  ).map((opt) => (
+                    <OptionCard
+                      key={opt.value}
+                      option={opt}
+                      selected={answers.experienceLevel === opt.value}
+                      onPress={() => setAnswer("experienceLevel", opt.value)}
+                    />
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {/* ── STEP: Identity Reveal (NEW — Phase 4) ───────────────── */}
+            {currentStep === "identity" && (
+              <View style={styles.stepContent}>
+                <IdentityRevealStep
+                  identity={assignedIdentity}
+                  loading={identityLoading}
+                  error={identityError}
+                  onRetry={assignIdentity}
+                />
+              </View>
+            )}
+          </Animated.View>
+
+          {/* ── Continue button ───────────────────────────────────────── */}
+          {currentStep !== "identity" || !identityLoading ? (
+            <View style={{ marginTop: T.s8 }}>
+              <OnboardingCTA
+                label={currentStep === "identity" ? "LET'S GO" : "CONTINUE"}
+                onPress={() => {
+                  if (canAdvance()) goForward();
+                }}
+                disabled={!canAdvance()}
               />
             </View>
-          )}
-        </Animated.View>
-
-        {/* ── Continue button ───────────────────────────────────────── */}
-        {currentStep !== "identity" || !identityLoading ? (
-          <View style={{ marginTop: T.s8 }}>
-            <OnboardingCTA
-              label={currentStep === "identity" ? "LET'S GO" : "CONTINUE"}
-              onPress={() => {
-                if (canAdvance()) goForward();
-              }}
-              disabled={!canAdvance()}
-            />
-          </View>
-        ) : null}
-      </ScrollView>
-    </View>
+          ) : null}
+        </ScrollView>
+      </View>
+    </>
   );
 }
 
