@@ -8,6 +8,7 @@ import {
   Image,
   ImageBackground,
   useWindowDimensions,
+  Modal,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -52,6 +53,9 @@ import {
   ChevronLeft,
   ArrowRight,
   Star,
+  X,
+  Check,
+  ShieldCheck,
 } from "lucide-react-native";
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
@@ -832,69 +836,489 @@ const trialStyles = StyleSheet.create({
   },
 });
 
-// ─── Purchase notice modal ─────────────────────────────────────────────────────
+// ─── Equipment connected modal ─────────────────────────────────────────────────
+// Premium "wow" success modal shown after login when we detect the user
+// already purchased equipment on Sporty Pulse Store. Reaction we're going for:
+// "Wait... the app already knows what I bought? That's actually smart."
 
-function PurchaseNoticeModal({
-  equipment,
-  onDismiss,
-}: {
-  equipment: { id: string; name: string }[];
-  onDismiss: () => void;
-}) {
-  const names = equipment.map((e) => e.name).join(", ");
+const PARTICLE_POSITIONS: { top: number; left: number; size: number }[] = [
+  { top: 2, left: 20, size: 3 },
+  { top: 16, left: 96, size: 4 },
+  { top: 62, left: 106, size: 3 },
+  { top: 104, left: 90, size: 3 },
+  { top: 110, left: 18, size: 4 },
+  { top: 54, left: 0, size: 3 },
+];
+
+function SuccessGlowIcon() {
+  const glowScale = useSharedValue(1);
+  const glowOpacity = useSharedValue(0.45);
+  const particleOpacity = useSharedValue(0);
+
+  useEffect(() => {
+    glowOpacity.value = withDelay(
+      120,
+      withSequence(
+        withTiming(0.9, { duration: 360 }),
+        withTiming(0.45, { duration: 480 }),
+      ),
+    );
+    glowScale.value = withDelay(
+      120,
+      withSequence(
+        withTiming(1.18, { duration: 360 }),
+        withTiming(1, { duration: 480 }),
+      ),
+    );
+    particleOpacity.value = withDelay(260, withTiming(1, { duration: 420 }));
+  }, []);
+
+  const glowAnim = useAnimatedStyle(() => ({
+    opacity: glowOpacity.value,
+    transform: [{ scale: glowScale.value }],
+  }));
+  const particleAnim = useAnimatedStyle(() => ({
+    opacity: particleOpacity.value,
+  }));
+
   return (
-    <View style={purchaseModalStyles.overlay}>
-      <View style={purchaseModalStyles.card}>
-        <View style={trialStyles.shieldRing}>
-          <View style={trialStyles.shieldCore}>
-            <Dumbbell size={18} color={T.accent} strokeWidth={1.75} />
-          </View>
+    <View style={ecmStyles.iconWrap}>
+      <Animated.View style={[ecmStyles.glowHalo, glowAnim]} />
+      <View style={ecmStyles.glowRing}>
+        <View style={ecmStyles.glowCore}>
+          <Check size={18} color={T.bg} strokeWidth={3} />
         </View>
-        <SPText style={trialStyles.eyebrow}>ALREADY EQUIPPED</SPText>
-        <SPText style={purchaseModalStyles.heading}>
-          We found your purchase
+      </View>
+      <Animated.View
+        style={[ecmStyles.particleLayer, particleAnim]}
+        pointerEvents="none"
+      >
+        {PARTICLE_POSITIONS.map((p, i) => (
+          <View
+            key={i}
+            style={[
+              ecmStyles.particleDot,
+              {
+                top: p.top,
+                left: p.left,
+                width: p.size,
+                height: p.size,
+                borderRadius: p.size / 2,
+              },
+            ]}
+          />
+        ))}
+      </Animated.View>
+    </View>
+  );
+}
+
+function EquipmentCard({
+  name,
+  weight,
+  image,
+  extraCount,
+}: {
+  name: string;
+  weight?: string;
+  image?: string;
+  extraCount: number;
+}) {
+  return (
+    <View style={ecmStyles.equipCard}>
+      <View style={ecmStyles.equipImageWrap}>
+        {image ? (
+          <Image
+            source={{ uri: image }}
+            style={ecmStyles.equipImage}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={ecmStyles.equipImageFallback}>
+            <Dumbbell size={17} color={T.accent} strokeWidth={1.75} />
+          </View>
+        )}
+      </View>
+      <View style={ecmStyles.equipInfo}>
+        <SPText style={ecmStyles.equipName} numberOfLines={1}>
+          {name}
+          {extraCount > 0 ? ` +${extraCount} more` : ""}
         </SPText>
-        <SPText style={purchaseModalStyles.body}>
-          {names} is already linked to your account, so we've skipped the
-          equipment questions below.
-        </SPText>
-        <OnboardingCTA label="GOT IT" onPress={onDismiss} />
+        {weight ? (
+          <SPText style={ecmStyles.equipWeight}>{weight}</SPText>
+        ) : null}
+        <View style={ecmStyles.linkedRow}>
+          <View style={ecmStyles.linkedCheck}>
+            <Check size={9} color={T.accent} strokeWidth={3} />
+          </View>
+          <SPText style={ecmStyles.linkedText}>Linked to your profile</SPText>
+        </View>
       </View>
     </View>
   );
 }
 
-const purchaseModalStyles = StyleSheet.create({
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(12,14,16,0.78)",
+function BenefitColumn({
+  IconComponent,
+  title,
+  description,
+}: {
+  IconComponent: React.ComponentType<{
+    size?: number;
+    color?: string;
+    strokeWidth?: number;
+  }>;
+  title: string;
+  description: string;
+}) {
+  return (
+    <View style={ecmStyles.benefitCol}>
+      <IconComponent size={20} color={T.accent} strokeWidth={1.75} />
+      <SPText style={ecmStyles.benefitTitle}>{title}</SPText>
+      <SPText style={ecmStyles.benefitDescription}>{description}</SPText>
+    </View>
+  );
+}
+
+interface EquipmentConnectedModalProps {
+  visible: boolean;
+  equipmentName: string;
+  equipmentWeight?: string;
+  equipmentImage?: string;
+  additionalCount?: number;
+  onClose: () => void;
+  onContinue: () => void;
+}
+
+function EquipmentConnectedModal({
+  visible,
+  equipmentName,
+  equipmentWeight,
+  equipmentImage,
+  additionalCount = 0,
+  onClose,
+  onContinue,
+}: EquipmentConnectedModalProps) {
+  const cardScale = useSharedValue(0.95);
+  const cardOpacity = useSharedValue(0);
+  const closeOpacity = useSharedValue(0);
+
+  useEffect(() => {
+    if (visible) {
+      cardOpacity.value = withTiming(1, { duration: 320 });
+      cardScale.value = withSpring(1, { damping: 18, stiffness: 180 });
+      closeOpacity.value = withDelay(280, withTiming(1, { duration: 240 }));
+    } else {
+      cardOpacity.value = 0;
+      cardScale.value = 0.95;
+      closeOpacity.value = 0;
+    }
+  }, [visible]);
+
+  const cardAnim = useAnimatedStyle(() => ({
+    opacity: cardOpacity.value,
+    transform: [{ scale: cardScale.value }],
+  }));
+  const closeAnim = useAnimatedStyle(() => ({ opacity: closeOpacity.value }));
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      statusBarTranslucent
+      onRequestClose={onClose}
+    >
+      <Pressable style={ecmStyles.backdrop} onPress={onClose}>
+        <Pressable
+          onPress={(e) => e.stopPropagation()}
+          style={ecmStyles.centerWrap}
+        >
+          <Animated.View style={[ecmStyles.card, cardAnim]}>
+            <Animated.View style={[ecmStyles.closeBtnWrap, closeAnim]}>
+              <Pressable
+                onPress={onClose}
+                hitSlop={12}
+                style={({ pressed }) => [
+                  ecmStyles.closeBtn,
+                  pressed && { opacity: 0.7 },
+                ]}
+              >
+                <X size={18} color={T.text} strokeWidth={2} />
+              </Pressable>
+            </Animated.View>
+
+            <SuccessGlowIcon />
+
+            <SPText style={ecmStyles.eyebrow}>EQUIPMENT CONNECTED</SPText>
+
+            <SPText style={ecmStyles.title}>
+              Your new equipment{"\n"}is{" "}
+              <SPText style={[ecmStyles.title, { color: T.accent }]}>
+                ready
+              </SPText>{" "}
+              to go.
+            </SPText>
+
+            <SPText style={ecmStyles.description}>
+              We found your purchase and linked it to your account.{"\n"}
+              You're all set.
+            </SPText>
+
+            <EquipmentCard
+              name={equipmentName}
+              weight={equipmentWeight}
+              image={equipmentImage}
+              extraCount={additionalCount}
+            />
+
+            <View style={ecmStyles.benefitsRow}>
+              <BenefitColumn
+                IconComponent={Target}
+                title="Personalized"
+                description={"Workouts tailored\nto your equipment"}
+              />
+              <View style={ecmStyles.benefitDivider} />
+              <BenefitColumn
+                IconComponent={TrendingUp}
+                title="Smarter Progress"
+                description={"Track performance\nwith precision"}
+              />
+              <View style={ecmStyles.benefitDivider} />
+              <BenefitColumn
+                IconComponent={ShieldCheck}
+                title="Optimized Results"
+                description={"Get the most out\nof your gear"}
+              />
+            </View>
+
+            <View style={{ width: "100%" }}>
+              <OnboardingCTA label="LET'S GO" onPress={onContinue} />
+            </View>
+          </Animated.View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+const ecmStyles = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    backgroundColor: "rgba(12,14,16,0.82)",
     alignItems: "center",
     justifyContent: "center",
     padding: T.s24,
-    zIndex: 10,
+  },
+  centerWrap: {
+    width: "100%",
+    maxHeight: "90%",
+    alignItems: "center",
   },
   card: {
     width: "100%",
-    maxWidth: 360,
-    backgroundColor: "rgba(19,23,26,0.96)",
+    maxWidth: 380,
+    backgroundColor: T.surface,
     borderWidth: 1,
     borderColor: T.border,
-    borderRadius: T.r16,
-    padding: T.s24,
-    gap: T.s8,
-    alignItems: "flex-start",
+    borderRadius: 28,
+    paddingHorizontal: T.s16,
+    paddingTop: 20,
+    paddingBottom: 16,
+    alignItems: "center",
+    gap: 10,
+    shadowColor: "#000",
+    shadowOpacity: 0.45,
+    shadowRadius: 28,
+    shadowOffset: { width: 0, height: 16 },
+    elevation: 14,
   },
-  heading: {
+
+  closeBtnWrap: {
+    position: "absolute",
+    top: T.s16,
+    right: T.s16,
+    zIndex: 2,
+  },
+  closeBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  // Success glow icon
+  iconWrap: {
+    width: 76,
+    height: 76,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  glowHalo: {
+    position: "absolute",
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    backgroundColor: T.accentDim,
+    shadowColor: T.accent,
+    shadowOpacity: 0.6,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 0 },
+  },
+  glowRing: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    borderWidth: 1.5,
+    borderColor: T.accentBorder,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(200,241,53,0.04)",
+  },
+  glowCore: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: T.accent,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: T.accent,
+    shadowOpacity: 0.7,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 8,
+  },
+  particleLayer: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  particleDot: {
+    position: "absolute",
+    backgroundColor: T.accent,
+    opacity: 0.7,
+  },
+
+  eyebrow: {
     fontFamily: "Barlow-SemiBold",
-    fontSize: 18,
-    color: T.text,
-    marginTop: T.s4,
+    fontSize: 12,
+    letterSpacing: 1.4,
+    color: T.accent,
+    textAlign: "center",
+    textTransform: "uppercase",
   },
-  body: {
+  title: {
+    fontFamily: "Barlow-Bold",
+    fontSize: 20,
+    lineHeight: 24,
+    color: T.text,
+    textAlign: "center",
+  },
+  description: {
     fontFamily: "Barlow-Regular",
-    fontSize: 13,
+    fontSize: 12.5,
+    lineHeight: 17,
     color: T.muted2,
-    marginBottom: T.s16,
+    textAlign: "center",
+  },
+
+  // Equipment card
+  equipCard: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: T.s12,
+    backgroundColor: T.surface2,
+    borderWidth: 1,
+    borderColor: T.border,
+    borderRadius: T.r12,
+    padding: T.s8,
+  },
+  equipImageWrap: {
+    width: 46,
+    height: 46,
+    borderRadius: T.r12,
+    overflow: "hidden",
+    backgroundColor: T.raised,
+  },
+  equipImage: {
+    width: "100%",
+    height: "100%",
+  },
+  equipImageFallback: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: T.accentDim,
+  },
+  equipInfo: {
+    flex: 1,
+    gap: 4,
+  },
+  equipName: {
+    fontFamily: "Barlow-Bold",
+    fontSize: 17,
+    color: T.text,
+  },
+  equipWeight: {
+    fontFamily: "Barlow-Medium",
+    fontSize: 13,
+    letterSpacing: 0.4,
+    color: T.muted2,
+  },
+  linkedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 2,
+  },
+  linkedCheck: {
+    width: 15,
+    height: 15,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: T.accentBorder,
+    backgroundColor: T.accentDim,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  linkedText: {
+    fontFamily: "Barlow-Medium",
+    fontSize: 12,
+    color: T.muted2,
+  },
+
+  // Benefits row
+  benefitsRow: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "stretch",
+    justifyContent: "space-between",
+  },
+  benefitCol: {
+    flex: 1,
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: T.s4,
+  },
+  benefitDivider: {
+    width: 1,
+    alignSelf: "stretch",
+    backgroundColor: T.border,
+    marginVertical: 2,
+  },
+  benefitTitle: {
+    fontFamily: "Barlow-SemiBold",
+    fontSize: 12.5,
+    color: T.text,
+    textAlign: "center",
+  },
+  benefitDescription: {
+    fontFamily: "Barlow-Regular",
+    fontSize: 11,
+    lineHeight: 14,
+    color: T.muted2,
+    textAlign: "center",
   },
 });
 
@@ -1548,7 +1972,7 @@ export function OnboardingScreen() {
   const [error, setError] = useState("");
 
   const [purchasedEquipment, setPurchasedEquipment] = useState<
-    { id: string; name: string }[]
+    { id: string; name: string; weight?: string; image?: string }[]
   >([]);
   const [purchaseModalVisible, setPurchaseModalVisible] = useState(false);
   const [checkingPurchases, setCheckingPurchases] = useState(true);
@@ -1780,12 +2204,15 @@ export function OnboardingScreen() {
 
     return (
       <>
-        {purchaseModalVisible && (
-          <PurchaseNoticeModal
-            equipment={purchasedEquipment}
-            onDismiss={() => setPurchaseModalVisible(false)}
-          />
-        )}
+        <EquipmentConnectedModal
+          visible={purchaseModalVisible}
+          equipmentName={purchasedEquipment[0]?.name ?? "Your equipment"}
+          equipmentWeight={purchasedEquipment[0]?.weight}
+          equipmentImage={purchasedEquipment[0]?.image}
+          additionalCount={Math.max(purchasedEquipment.length - 1, 0)}
+          onClose={() => setPurchaseModalVisible(false)}
+          onContinue={() => setPurchaseModalVisible(false)}
+        />
         <View style={styles.fill}>
           <View
             style={[
@@ -1911,12 +2338,15 @@ export function OnboardingScreen() {
   // ── All other steps ───────────────────────────────────────────────────────────
   return (
     <>
-      {purchaseModalVisible && (
-        <PurchaseNoticeModal
-          equipment={purchasedEquipment}
-          onDismiss={() => setPurchaseModalVisible(false)}
-        />
-      )}
+      <EquipmentConnectedModal
+        visible={purchaseModalVisible}
+        equipmentName={purchasedEquipment[0]?.name ?? "Your equipment"}
+        equipmentWeight={purchasedEquipment[0]?.weight}
+        equipmentImage={purchasedEquipment[0]?.image}
+        additionalCount={Math.max(purchasedEquipment.length - 1, 0)}
+        onClose={() => setPurchaseModalVisible(false)}
+        onContinue={() => setPurchaseModalVisible(false)}
+      />
       <View style={[styles.fill, { paddingTop: insets.top }]}>
         <HeaderBar
           currentIndex={currentIndex}
