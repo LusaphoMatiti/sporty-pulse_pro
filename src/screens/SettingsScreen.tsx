@@ -968,7 +968,7 @@ export function SettingsScreen() {
           style: "destructive",
           onPress: async () => {
             try {
-              await api.post("/api/payfast/cancel");
+              await api.post("/api/payfast/cancel", {});
               await fetchData(true);
               Alert.alert(
                 "Subscription cancelled",
