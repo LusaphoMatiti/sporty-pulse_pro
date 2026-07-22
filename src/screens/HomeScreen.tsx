@@ -1336,7 +1336,7 @@ export function HomeScreen() {
       ? `Week ${planWeek} of ${planName} · ${sessionsLeft} session${sessionsLeft !== 1 ? "s" : ""} left`
       : "No active plan — start one to begin tracking";
 
-  const handleUpgrade = () => router.push("/upgrade" as any);
+  const handleUpgrade = () => router.push("/pricing" as any);
 
   return (
     <View style={[styles.fill, { backgroundColor: theme.bg }]}>
