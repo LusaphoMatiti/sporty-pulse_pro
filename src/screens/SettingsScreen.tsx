@@ -957,6 +957,36 @@ export function SettingsScreen() {
     ]);
   }
 
+  async function handleManageSubscription() {
+    Alert.alert(
+      "Cancel Pro Subscription",
+      "You'll lose access to Pro features immediately. This can't be undone -- you'd need to subscribe again to get Pro back.",
+      [
+        { text: "Keep Pro", style: "cancel" },
+        {
+          text: "Cancel Subscription",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await api.post("/api/payfast/cancel");
+              await fetchData(true);
+              Alert.alert(
+                "Subscription cancelled",
+                "You're back on the Starter plan.",
+              );
+            } catch (err) {
+              console.error(err);
+              Alert.alert(
+                "Something went wrong",
+                "Could not cancel your subscription. Please try again.",
+              );
+            }
+          },
+        },
+      ],
+    );
+  }
+
   if (loading || !data) {
     return (
       <View style={[mainStyles.fill, { backgroundColor: theme.bg }]}>
@@ -1135,7 +1165,7 @@ export function SettingsScreen() {
             </View>
 
             {isPro ? (
-              <PressableScale onPress={() => router.push("/pricing" as any)}>
+              <PressableScale onPress={handleManageSubscription}>
                 <View
                   style={[
                     mainStyles.upgradeBtn,
