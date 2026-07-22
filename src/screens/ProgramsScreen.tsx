@@ -1956,7 +1956,7 @@ export function ProgramsScreen() {
     }
   };
 
-  const handleUpgrade = () => router.push("/upgrade" as any);
+  const handleUpgrade = () => router.push("/pricing" as any);
   const handleViewIdentitySettings = () =>
     router.push("/(tabs)/settings/identity" as any);
 
@@ -2091,6 +2091,7 @@ export function ProgramsScreen() {
           trigger={upgradeTrigger}
           open={!!upgradeTrigger}
           onClose={() => setUpgradeTrigger(null)}
+          onUpgrade={() => router.push("/pricing" as any)}
         />
       )}
     </View>
