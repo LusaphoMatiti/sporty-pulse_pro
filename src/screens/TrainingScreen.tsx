@@ -799,6 +799,7 @@ function ProgramsTab({
         trigger="upgrade_required"
         open={showUpgradePrompt}
         onClose={() => setShowUpgradePrompt(false)}
+        onUpgrade={() => router.push("/pricing" as any)}
       />
     </>
   );
