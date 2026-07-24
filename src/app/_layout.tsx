@@ -13,6 +13,7 @@ import {
   storeSessionToken,
 } from "../lib/api";
 import { ThemeProvider, useAppTheme } from "../theme/ThemeContext";
+import PrivacyPolicyModal from "../components/ui/PrivacyPolicyModal";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -126,6 +127,7 @@ function ThemedApp({ hasToken, skipRedirect }: ThemedAppProps) {
             />
             <Stack.Screen name="(tabs)" options={{ animation: "none" }} />
           </Stack>
+          <PrivacyPolicyModal />
         </View>
       </SafeAreaProvider>
     </GestureHandlerRootView>
