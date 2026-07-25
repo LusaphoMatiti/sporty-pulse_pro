@@ -351,7 +351,11 @@ function OptionCard({
           setTimeout(() => {
             scale.value = withSpring(1, spring.snappy);
           }, 100);
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          try {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          } catch {
+            // haptics unsupported on this device/simulator — ignore
+          }
           onPress();
         }}
         style={[optionStyles.card, selected && optionStyles.cardSelected]}
