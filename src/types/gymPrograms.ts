@@ -1,0 +1,40 @@
+export type MuscleFocus =
+  | "CHEST"
+  | "BACK"
+  | "LEGS"
+  | "SHOULDERS"
+  | "ARMS"
+  | "RECOVERY"
+  | "REST";
+
+export interface ScheduleExercise {
+  id: string;
+  name: string;
+  sets: number;
+  reps: number;
+}
+
+export interface ScheduleDay {
+  dayIndex: number; // 0 = Monday ... 6 = Sunday
+  dayLabel: string; // "Monday"
+  dayAbbrev: string; // "MON"
+  sessionNumber: number | null;
+  focus: string | null; // raw focus string from PlannedSession, e.g. "Chest"
+  estimatedMinutes: number | null;
+  difficulty: string | null; // from WorkoutPlan.difficulty
+  exercises: ScheduleExercise[];
+  isRestDay: boolean;
+  isToday: boolean;
+}
+
+export interface HeroSplitData {
+  planName: string; // e.g. "Push Pull Legs"
+  description: string; // "Generated based on your preferences."
+}
+
+export interface GymProgramsData {
+  hero: HeroSplitData | null;
+  days: ScheduleDay[];
+}
+
+export type BottomNavTab = "HOME" | "TRAINING" | "PROGRESS" | "SETTINGS";

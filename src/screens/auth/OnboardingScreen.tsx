@@ -19,6 +19,7 @@ import Animated, {
   withTiming,
   withDelay,
   withSequence,
+  interpolateColor,
 } from "react-native-reanimated";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
@@ -165,6 +166,7 @@ const IDENTITY_CONFIG: Record<
 interface Answers {
   primaryGoal: string;
   trainingLocation: string;
+  gymTrainingStyle: string;
   biologicalSex: string;
   experienceLevel: string;
   equipmentId: string;
@@ -179,6 +181,7 @@ interface EquipmentItem {
 type StepName =
   | "goal"
   | "location"
+  | "gymStyle"
   | "sex"
   | "hasEquipment"
   | "pickEquipment"
@@ -200,6 +203,9 @@ function buildStepList(
       steps.push("hasEquipment");
       if (hasEquipment === true) steps.push("pickEquipment");
     }
+    if (trainingLocation === "GYM") {
+      steps.push("gymStyle");
+    }
   }
   steps.push("sex", "experience", "identity", "confirm");
   return steps;
@@ -213,6 +219,12 @@ const GOAL_LABEL: Record<string, string> = {
   GET_FIT: "Get Fit",
 };
 const LOCATION_LABEL: Record<string, string> = { HOME: "Home", GYM: "Gym" };
+const GYM_STYLE_LABEL: Record<string, string> = {
+  BODYWEIGHT: "Free weight",
+  CALISTHENICS: "Calisthenic",
+  WEIGHTS_AND_MACHINES: "Weights & Machine",
+  WEIGHTS_ONLY: "Weights only",
+};
 const SEX_LABEL: Record<string, string> = {
   MALE: "Male",
   FEMALE: "Female",
@@ -351,11 +363,7 @@ function OptionCard({
           setTimeout(() => {
             scale.value = withSpring(1, spring.snappy);
           }, 100);
-          try {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          } catch {
-            // haptics unsupported on this device/simulator — ignore
-          }
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
           onPress();
         }}
         style={[optionStyles.card, selected && optionStyles.cardSelected]}
@@ -457,6 +465,173 @@ const optionStyles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
     backgroundColor: T.void,
+  },
+});
+
+// ─── Gym training style card (premium selection card) ────────────────────────
+// Purpose-built for the post-"Gym" onboarding step — larger footprint, a
+// filled icon square, and a persistent animated selection state (not just
+// a press bounce) per the design spec: elevation, glow, and a filled
+// checkmark indicator on select.
+
+function GymStyleCard({
+  option,
+  selected,
+  onPress,
+}: {
+  option: Option;
+  selected: boolean;
+  onPress: () => void;
+}) {
+  const progress = useSharedValue(selected ? 1 : 0);
+  const pressScale = useSharedValue(1);
+
+  useEffect(() => {
+    progress.value = withSpring(selected ? 1 : 0, {
+      damping: 16,
+      stiffness: 180,
+    });
+  }, [selected]);
+
+  const cardStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateY: -3 * progress.value },
+      { scale: pressScale.value },
+    ],
+    borderColor: interpolateColor(progress.value, [0, 1], [T.border, T.accent]),
+    backgroundColor: interpolateColor(
+      progress.value,
+      [0, 1],
+      [T.surface, T.surface2],
+    ),
+    shadowOpacity: 0.25 * progress.value,
+  }));
+
+  const iconWrapStyle = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(
+      progress.value,
+      [0, 1],
+      [T.accentDim, T.accent],
+    ),
+  }));
+
+  const indicatorStyle = useAnimatedStyle(() => ({
+    borderColor: interpolateColor(
+      progress.value,
+      [0, 1],
+      ["rgba(255,255,255,0.20)", T.accent],
+    ),
+    backgroundColor: interpolateColor(
+      progress.value,
+      [0, 1],
+      ["transparent", T.accent],
+    ),
+  }));
+
+  const checkStyle = useAnimatedStyle(() => ({
+    opacity: progress.value,
+    transform: [{ scale: 0.5 + progress.value * 0.5 }],
+  }));
+
+  const IconComp = option.lucideIcon;
+
+  return (
+    <Animated.View style={[gymCardStyles.card, cardStyle]}>
+      <Pressable
+        onPress={() => {
+          pressScale.value = withSpring(0.98, spring.snappy);
+          setTimeout(() => {
+            pressScale.value = withSpring(1, spring.snappy);
+          }, 100);
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          onPress();
+        }}
+        style={gymCardStyles.pressable}
+      >
+        <Animated.View style={[gymCardStyles.iconWrap, iconWrapStyle]}>
+          {IconComp ? (
+            <IconComp
+              size={26}
+              color={selected ? T.void : T.accent}
+              strokeWidth={2}
+            />
+          ) : (
+            <SPIcon
+              name={option.iconName}
+              size={26}
+              color={selected ? T.void : T.accent}
+            />
+          )}
+        </Animated.View>
+
+        <View style={gymCardStyles.textWrap}>
+          <SPText style={gymCardStyles.title}>{option.label}</SPText>
+          {option.sublabel ? (
+            <SPText style={gymCardStyles.sublabel} numberOfLines={2}>
+              {option.sublabel}
+            </SPText>
+          ) : null}
+        </View>
+
+        <Animated.View style={[gymCardStyles.indicator, indicatorStyle]}>
+          <Animated.View style={checkStyle}>
+            <Check size={14} color={T.void} strokeWidth={3} />
+          </Animated.View>
+        </Animated.View>
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+const gymCardStyles = StyleSheet.create({
+  card: {
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: T.border,
+    backgroundColor: T.surface,
+    shadowColor: T.accent,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 16,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  pressable: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: T.s16,
+    padding: T.s24,
+    minHeight: 112,
+  },
+  iconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: T.r20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  textWrap: {
+    flex: 1,
+    gap: T.s4,
+  },
+  title: {
+    fontFamily: "Barlow-Bold",
+    fontSize: 19,
+    color: T.text,
+  },
+  sublabel: {
+    fontFamily: "Barlow-Regular",
+    fontSize: 13,
+    color: T.muted2,
+    lineHeight: 18,
+  },
+  indicator: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.20)",
+    alignItems: "center",
+    justifyContent: "center",
   },
 });
 
@@ -1518,6 +1693,16 @@ function StepHeader({
   );
 }
 
+const gymStyleStepStyles = StyleSheet.create({
+  eyebrow: {
+    fontFamily: "Barlow-SemiBold",
+    fontSize: 12,
+    color: T.accent,
+    textTransform: "uppercase",
+    letterSpacing: 1.5,
+  },
+});
+
 const stepHeaderStyles = StyleSheet.create({
   wrap: { gap: T.s8 },
   eyebrow: {
@@ -1963,6 +2148,7 @@ export function OnboardingScreen() {
   const [answers, setAnswers] = useState<Answers>({
     primaryGoal: "",
     trainingLocation: "",
+    gymTrainingStyle: "",
     biologicalSex: "",
     experienceLevel: "",
     equipmentId: "",
@@ -2121,6 +2307,8 @@ export function OnboardingScreen() {
         return !!answers.primaryGoal;
       case "location":
         return !!answers.trainingLocation;
+      case "gymStyle":
+        return !!answers.gymTrainingStyle;
       case "sex":
         return !!answers.biologicalSex;
       case "hasEquipment":
@@ -2145,6 +2333,9 @@ export function OnboardingScreen() {
       setHasEquipment(null);
       setAnswer("equipmentId", "");
     }
+    if (value === "HOME") {
+      setAnswer("gymTrainingStyle", "");
+    }
   }
 
   function handleHasEquipmentSelect(value: boolean) {
@@ -2163,6 +2354,9 @@ export function OnboardingScreen() {
         experienceLevel: answers.experienceLevel,
       };
       if (answers.equipmentId) payload.equipmentId = answers.equipmentId;
+      if (answers.trainingLocation === "GYM" && answers.gymTrainingStyle) {
+        payload.gymTrainingStyle = answers.gymTrainingStyle;
+      }
 
       const res = await api.post<{ ok?: boolean; error?: string }>(
         "/api/onboarding/complete",
@@ -2203,6 +2397,9 @@ export function OnboardingScreen() {
       LEVEL_LABEL[answers.experienceLevel]?.toUpperCase(),
       answers.trainingLocation === "HOME"
         ? (displayedEquipmentName ?? "Bodyweight").toUpperCase()
+        : null,
+      answers.trainingLocation === "GYM"
+        ? GYM_STYLE_LABEL[answers.gymTrainingStyle]?.toUpperCase()
         : null,
     ].filter(Boolean) as string[];
 
@@ -2278,6 +2475,17 @@ export function OnboardingScreen() {
                     setCurrentStep("location");
                   }}
                 />
+                {answers.trainingLocation === "GYM" && (
+                  <ProfileSnapshotRow
+                    IconComponent={Dumbbell}
+                    label="Training style"
+                    value={GYM_STYLE_LABEL[answers.gymTrainingStyle] ?? "—"}
+                    onEdit={() => {
+                      animateToStep(-1);
+                      setCurrentStep("gymStyle");
+                    }}
+                  />
+                )}
                 <ProfileSnapshotRow
                   IconComponent={User}
                   label="Biological sex"
@@ -2446,6 +2654,65 @@ export function OnboardingScreen() {
                     selected={answers.trainingLocation === "GYM"}
                     onPress={() => handleLocationSelect("GYM")}
                   />
+                </View>
+              </View>
+            )}
+
+            {/* ── STEP: Gym Training Style ────────────────────────────── */}
+            {currentStep === "gymStyle" && (
+              <View style={styles.stepContent}>
+                <View style={{ gap: T.s8 }}>
+                  <SPText style={gymStyleStepStyles.eyebrow}>
+                    TRAINING STYLE
+                  </SPText>
+                  <StepHeader
+                    title={"What best describes\nyour gym training?"}
+                    subtitle="Choose the option that matches your primary training style."
+                  />
+                </View>
+                <View style={{ gap: T.s16 }}>
+                  {(
+                    [
+                      {
+                        value: "BODYWEIGHT",
+                        label: "Free Weight",
+                        sublabel:
+                          "Barbells, dumbbells and functional training.",
+                        iconName: "dumbbell",
+                        lucideIcon: Dumbbell,
+                      },
+                      {
+                        value: "CALISTHENICS",
+                        label: "Calisthenic",
+                        sublabel:
+                          "Bodyweight training, skill work and functional movements.",
+                        iconName: "calisthenics",
+                        lucideIcon: Activity,
+                      },
+                      {
+                        value: "WEIGHTS_AND_MACHINES",
+                        label: "Weights & Machine",
+                        sublabel: "Combination of machines and free weights.",
+                        iconName: "machines",
+                        lucideIcon: Settings,
+                      },
+                      {
+                        value: "WEIGHTS_ONLY",
+                        label: "Weights Only",
+                        sublabel:
+                          "Focus on barbells, dumbbells and weighted exercises.",
+                        iconName: "weights",
+                        lucideIcon: Target,
+                      },
+                    ] as Option[]
+                  ).map((opt) => (
+                    <GymStyleCard
+                      key={opt.value}
+                      option={opt}
+                      selected={answers.gymTrainingStyle === opt.value}
+                      onPress={() => setAnswer("gymTrainingStyle", opt.value)}
+                    />
+                  ))}
                 </View>
               </View>
             )}
