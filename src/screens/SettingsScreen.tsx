@@ -1098,7 +1098,7 @@ export function SettingsScreen() {
             <Row
               icon={<SPIcon name="sliders" size={20} color={theme.accent} />}
               label="Training System"
-              onPress={() => router.push("/settings/identity" as any)}
+              onPress={() => router.push("/settings/training-system" as any)}
               last
               value={identity ? IDENTITY_LABEL[identity] : undefined}
             />
