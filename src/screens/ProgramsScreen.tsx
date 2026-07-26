@@ -48,6 +48,7 @@ import { useAppTheme } from "../theme/ThemeContext";
 import { useTabBarHeight } from "../hooks/Usetabbarheight";
 import { api } from "../lib/api";
 import { CACHE_KEYS } from "../lib/cacheKeys";
+import GymProgramsScreen from "./GymprogramsScreen";
 
 // ─── Design Tokens ────────────────────────────────────────────────────────────
 
@@ -141,6 +142,8 @@ interface ProgramsData {
   access: AccessContext;
   declaredEquipmentName: string | null;
   userIdentity?: Identity | null;
+  trainingLocation?: "HOME" | "GYM" | null;
+  weeklySchedule?: unknown; // GYM-only — actual shape consumed inside GymProgramsScreen
 }
 
 // ─── Identity config ──────────────────────────────────────────────────────────
@@ -1859,6 +1862,13 @@ export function ProgramsScreen() {
   }, [data?.access?.trialExpiresAt]);
 
   if (loading) return <Skeleton insetTop={insets.top} theme={theme} />;
+
+  // GYM users get the dedicated weekly-schedule screen instead of this
+  // catalog view. HOME users (and GYM users before onboarding data has
+  // synced) fall through to everything below, unchanged.
+  if (data?.trainingLocation === "GYM") {
+    return <GymProgramsScreen />;
+  }
 
   if (error || !data) {
     return (
