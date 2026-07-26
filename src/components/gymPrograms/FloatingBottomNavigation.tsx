@@ -1,6 +1,7 @@
+// components/gymPrograms/FloatingBottomNavigation.tsx
+
 import React from "react";
 import { View, Pressable, StyleSheet } from "react-native";
-import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
 import { Home, Dumbbell, TrendingUp, Settings } from "lucide-react-native";
 import { SPText } from "../../components/ui/SPText";
@@ -37,7 +38,7 @@ export function FloatingBottomNavigation({
 }: FloatingBottomNavigationProps) {
   return (
     <View style={[styles.wrap, { bottom: bottomInset + GT.s12 }]}>
-      <BlurView intensity={40} tint="dark" style={styles.blur}>
+      <View style={styles.blur}>
         <View style={styles.indicatorTrack}>
           <View
             style={[
@@ -80,7 +81,7 @@ export function FloatingBottomNavigation({
             );
           })}
         </View>
-      </BlurView>
+      </View>
     </View>
   );
 }
