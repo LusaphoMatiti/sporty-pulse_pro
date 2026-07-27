@@ -1,6 +1,7 @@
 import React from "react";
 import { View, ScrollView, Pressable } from "react-native";
 import { useRouter } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChevronLeft } from "lucide-react-native";
 import { SPText } from "../components/ui/SPText";
 import { useAppTheme } from "../theme/ThemeContext";
@@ -31,6 +32,7 @@ export default function AboutScreen() {
   const router = useRouter();
   const { theme } = useAppTheme();
   const { rs, rsp } = useResponsive();
+  const insets = useSafeAreaInsets();
 
   return (
     <ScrollView
@@ -38,6 +40,7 @@ export default function AboutScreen() {
       contentContainerStyle={{
         padding: rsp(spacing[5]),
         paddingTop: rsp(spacing[6]),
+        paddingBottom: insets.bottom + rsp(64),
         maxWidth: 640,
         width: "100%",
         alignSelf: "center",

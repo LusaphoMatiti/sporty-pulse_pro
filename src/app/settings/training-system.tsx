@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { View, ScrollView, Pressable } from "react-native";
 import { useRouter } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChevronLeft } from "lucide-react-native";
 import { SPText } from "../../components/ui/SPText";
 import { SPButton } from "../../components/ui/SPButton";
@@ -117,6 +118,7 @@ export default function TrainingSystemScreen() {
   const router = useRouter();
   const { theme } = useAppTheme();
   const { rs, rsp } = useResponsive();
+  const insets = useSafeAreaInsets();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -192,6 +194,7 @@ export default function TrainingSystemScreen() {
       contentContainerStyle={{
         padding: rsp(spacing[5]),
         paddingTop: rsp(spacing[6]),
+        paddingBottom: insets.bottom + rsp(64),
         maxWidth: 640,
         width: "100%",
         alignSelf: "center",
@@ -312,7 +315,12 @@ export default function TrainingSystemScreen() {
         </SPText>
       )}
 
-      <SPButton variant="primary" onPress={handleSave} loading={saving}>
+      <SPButton
+        variant="primary"
+        onPress={handleSave}
+        loading={saving}
+        containerStyle={{ marginTop: spacing[2] }}
+      >
         Save Changes
       </SPButton>
     </ScrollView>
