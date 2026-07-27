@@ -1,9 +1,10 @@
 import React from "react";
-import { View, ScrollView } from "react-native";
+import { View, ScrollView, Pressable } from "react-native";
 import { useRouter } from "expo-router";
 import { ChevronLeft } from "lucide-react-native";
 import { SPText } from "../components/ui/SPText";
 import { useAppTheme } from "../theme/ThemeContext";
+import { useResponsive } from "../hooks/useResponsive";
 import { spacing, radii, borders, fonts } from "../theme";
 
 const SECTIONS = [
@@ -29,23 +30,31 @@ const FEATURES = [
 export default function AboutScreen() {
   const router = useRouter();
   const { theme } = useAppTheme();
+  const { rs, rsp } = useResponsive();
 
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: theme.bg }}
-      contentContainerStyle={{ padding: spacing[5], paddingTop: spacing[6] }}
+      contentContainerStyle={{
+        padding: rsp(spacing[5]),
+        paddingTop: rsp(spacing[6]),
+        maxWidth: 640,
+        width: "100%",
+        alignSelf: "center",
+      }}
     >
-      <ChevronLeft
-        size={24}
-        color={theme.text}
+      <Pressable
         onPress={() => router.back()}
-        style={{ marginBottom: spacing[4] }}
-      />
+        hitSlop={12}
+        style={{ marginBottom: rsp(spacing[4]), alignSelf: "flex-start" }}
+      >
+        <ChevronLeft size={rs(22, 24, 24, 26)} color={theme.text} />
+      </Pressable>
 
       <SPText
         style={{
           color: theme.muted,
-          fontSize: 11,
+          fontSize: rs(10, 11, 11, 12),
           letterSpacing: 1.5,
           textTransform: "uppercase",
           marginBottom: spacing[1],
@@ -57,8 +66,8 @@ export default function AboutScreen() {
         style={{
           color: theme.text,
           fontFamily: fonts.brandBold,
-          fontSize: 32,
-          marginBottom: spacing[6],
+          fontSize: rs(26, 28, 30, 34),
+          marginBottom: rsp(spacing[6]),
         }}
       >
         About Us
@@ -72,21 +81,27 @@ export default function AboutScreen() {
             borderColor: theme.border,
             borderWidth: borders.thin,
             borderRadius: radii.xl,
-            padding: spacing[4],
-            marginBottom: spacing[4],
+            padding: rsp(spacing[4]),
+            marginBottom: rsp(spacing[4]),
           }}
         >
           <SPText
             style={{
               color: theme.text,
               fontFamily: fonts.brandBold,
-              fontSize: 16,
+              fontSize: rs(15, 16, 16, 17),
               marginBottom: spacing[2],
             }}
           >
             {section.title}
           </SPText>
-          <SPText style={{ color: theme.muted2, fontSize: 13, lineHeight: 20 }}>
+          <SPText
+            style={{
+              color: theme.muted2,
+              fontSize: rs(13, 13, 14, 14),
+              lineHeight: rs(19, 20, 21, 22),
+            }}
+          >
             {section.body}
           </SPText>
         </View>
@@ -98,8 +113,8 @@ export default function AboutScreen() {
           borderColor: theme.border,
           borderWidth: borders.thin,
           borderRadius: radii.xl,
-          padding: spacing[4],
-          marginBottom: spacing[4],
+          padding: rsp(spacing[4]),
+          marginBottom: rsp(spacing[4]),
           gap: spacing[2],
         }}
       >
@@ -107,7 +122,7 @@ export default function AboutScreen() {
           style={{
             color: theme.text,
             fontFamily: fonts.brandBold,
-            fontSize: 16,
+            fontSize: rs(15, 16, 16, 17),
             marginBottom: spacing[1],
           }}
         >
@@ -116,7 +131,11 @@ export default function AboutScreen() {
         {FEATURES.map((item) => (
           <SPText
             key={item}
-            style={{ color: theme.muted2, fontSize: 13, lineHeight: 20 }}
+            style={{
+              color: theme.muted2,
+              fontSize: rs(13, 13, 14, 14),
+              lineHeight: rs(19, 20, 21, 22),
+            }}
           >
             ✓ {item}
           </SPText>
@@ -129,14 +148,14 @@ export default function AboutScreen() {
           borderColor: theme.border,
           borderWidth: borders.thin,
           borderRadius: radii.xl,
-          padding: spacing[4],
+          padding: rsp(spacing[4]),
         }}
       >
         <SPText
           style={{
             color: theme.text,
             fontFamily: fonts.brandBold,
-            fontSize: 16,
+            fontSize: rs(15, 16, 16, 17),
             marginBottom: spacing[2],
           }}
         >
@@ -145,8 +164,8 @@ export default function AboutScreen() {
         <SPText
           style={{
             color: theme.muted2,
-            fontSize: 13,
-            lineHeight: 20,
+            fontSize: rs(13, 13, 14, 14),
+            lineHeight: rs(19, 20, 21, 22),
             marginBottom: spacing[2],
           }}
         >
@@ -154,7 +173,13 @@ export default function AboutScreen() {
           maintained by LMDEVPRO, they believe that great training tools
           shouldn't require a gym membership or a personal trainer.
         </SPText>
-        <SPText style={{ color: theme.muted2, fontSize: 13, lineHeight: 20 }}>
+        <SPText
+          style={{
+            color: theme.muted2,
+            fontSize: rs(13, 13, 14, 14),
+            lineHeight: rs(19, 20, 21, 22),
+          }}
+        >
           This is version one. It will keep getting better.
         </SPText>
       </View>

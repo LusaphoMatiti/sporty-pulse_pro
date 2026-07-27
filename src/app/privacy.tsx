@@ -1,9 +1,10 @@
 import React from "react";
-import { View, ScrollView } from "react-native";
+import { View, ScrollView, Pressable } from "react-native";
 import { useRouter } from "expo-router";
 import { ChevronLeft } from "lucide-react-native";
 import { SPText } from "../components/ui/SPText";
 import { useAppTheme } from "../theme/ThemeContext";
+import { useResponsive } from "../hooks/useResponsive";
 import { spacing, radii, borders, fonts } from "../theme";
 
 const LAST_UPDATED = "April 2026";
@@ -46,23 +47,31 @@ const SECTIONS = [
 export default function PrivacyScreen() {
   const router = useRouter();
   const { theme } = useAppTheme();
+  const { rs, rsp } = useResponsive();
 
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: theme.bg }}
-      contentContainerStyle={{ padding: spacing[5], paddingTop: spacing[6] }}
+      contentContainerStyle={{
+        padding: rsp(spacing[5]),
+        paddingTop: rsp(spacing[6]),
+        maxWidth: 640,
+        width: "100%",
+        alignSelf: "center",
+      }}
     >
-      <ChevronLeft
-        size={24}
-        color={theme.text}
+      <Pressable
         onPress={() => router.back()}
-        style={{ marginBottom: spacing[4] }}
-      />
+        hitSlop={12}
+        style={{ marginBottom: rsp(spacing[4]), alignSelf: "flex-start" }}
+      >
+        <ChevronLeft size={rs(22, 24, 24, 26)} color={theme.text} />
+      </Pressable>
 
       <SPText
         style={{
           color: theme.muted,
-          fontSize: 11,
+          fontSize: rs(10, 11, 11, 12),
           letterSpacing: 1.5,
           textTransform: "uppercase",
           marginBottom: spacing[1],
@@ -74,14 +83,18 @@ export default function PrivacyScreen() {
         style={{
           color: theme.text,
           fontFamily: fonts.brandBold,
-          fontSize: 32,
+          fontSize: rs(26, 28, 30, 34),
           marginBottom: spacing[1],
         }}
       >
         Privacy Policy
       </SPText>
       <SPText
-        style={{ color: theme.muted, fontSize: 12, marginBottom: spacing[6] }}
+        style={{
+          color: theme.muted,
+          fontSize: rs(11, 12, 12, 13),
+          marginBottom: rsp(spacing[6]),
+        }}
       >
         Last updated: {LAST_UPDATED}
       </SPText>
@@ -94,21 +107,27 @@ export default function PrivacyScreen() {
             borderColor: theme.border,
             borderWidth: borders.thin,
             borderRadius: radii.xl,
-            padding: spacing[4],
-            marginBottom: spacing[3],
+            padding: rsp(spacing[4]),
+            marginBottom: rsp(spacing[3]),
           }}
         >
           <SPText
             style={{
               color: theme.text,
               fontFamily: fonts.brandBold,
-              fontSize: 15,
+              fontSize: rs(14, 15, 15, 16),
               marginBottom: spacing[2],
             }}
           >
             {section.title}
           </SPText>
-          <SPText style={{ color: theme.muted2, fontSize: 13, lineHeight: 20 }}>
+          <SPText
+            style={{
+              color: theme.muted2,
+              fontSize: rs(13, 13, 14, 14),
+              lineHeight: rs(19, 20, 21, 22),
+            }}
+          >
             {section.body}
           </SPText>
         </View>
