@@ -26,12 +26,7 @@ import { GT } from "../theme/gymProgramsTheme";
 import { DAY_ABBREV } from "../../contants/gymFocusMap";
 import { GymHeroCard } from "../components/gymPrograms/GymHeroCard";
 import { WeeklyDayCard } from "../components/gymPrograms/WeeklyDayCard";
-import { FloatingBottomNavigation } from "../components/gymPrograms/FloatingBottomNavigation";
-import type {
-  ScheduleDay,
-  HeroSplitData,
-  BottomNavTab,
-} from "../types/gymPrograms";
+import type { ScheduleDay, HeroSplitData } from "../types/gymPrograms";
 
 // ─── API response shape (matches the additive fields on GET /api/programs) ──
 
@@ -65,7 +60,6 @@ export default function GymProgramsScreen() {
   const [activeInstancePlanId, setActiveInstancePlanId] = useState<
     string | null
   >(null);
-  const [activeTab, setActiveTab] = useState<BottomNavTab>("TRAINING");
 
   const heroTranslateY = useSharedValue(24);
   const heroOpacity = useSharedValue(0);
@@ -79,7 +73,7 @@ export default function GymProgramsScreen() {
       }>("/api/programs");
 
       if (!result) {
-        +console.error("[GymProgramsScreen] no response from /api/programs");
+        console.error("[GymProgramsScreen] no response from /api/programs");
         return;
       }
       const { data } = result;
@@ -184,9 +178,6 @@ export default function GymProgramsScreen() {
       >
         <Animated.View entering={FadeIn.duration(280)} style={styles.header}>
           <View style={styles.headerTextCol}>
-            <SPText style={styles.eyebrow}>
-              SPORTY PULSE <SPText style={styles.eyebrowAccent}>PRO</SPText>
-            </SPText>
             <SPText style={styles.title}>Gym Programs</SPText>
             <SPText style={styles.subtitle}>
               Your weekly training schedule.
@@ -223,12 +214,6 @@ export default function GymProgramsScreen() {
           ))}
         </View>
       </ScrollView>
-
-      <FloatingBottomNavigation
-        activeTab={activeTab}
-        onTabPress={setActiveTab}
-        bottomInset={insets.bottom}
-      />
     </View>
   );
 }

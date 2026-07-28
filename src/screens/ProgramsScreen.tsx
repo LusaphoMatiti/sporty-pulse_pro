@@ -1866,9 +1866,9 @@ export function ProgramsScreen() {
   // GYM users get the dedicated weekly-schedule screen instead of this
   // catalog view. HOME users (and GYM users before onboarding data has
   // synced) fall through to everything below, unchanged.
-  if (data?.trainingLocation === "GYM") {
-    return <GymProgramsScreen />;
-  }
+ if (data?.trainingLocation === "GYM" && data?.access?.activePlanId) {
+  return <GymProgramsScreen />;
+}
 
   if (error || !data) {
     return (
