@@ -27,6 +27,7 @@ import { DAY_ABBREV } from "../../contants/gymFocusMap";
 import { GymHeroCard } from "../components/gymPrograms/GymHeroCard";
 import { WeeklyDayCard } from "../components/gymPrograms/WeeklyDayCard";
 import type { ScheduleDay, HeroSplitData } from "../types/gymPrograms";
+import { GymEmptyWeekState } from "../components/gymPrograms/GymEmptyWeekState";
 
 // ─── API response shape (matches the additive fields on GET /api/programs) ──
 
@@ -34,6 +35,14 @@ interface WorkoutPlanSummary {
   id: string;
   name: string;
   difficulty: string | null;
+}
+
+interface ProgramsApiResponse {
+  plans: WorkoutPlanSummary[];
+  access: { activePlanId: string | null };
+  trainingLocation: "HOME" | "GYM" | null;
+  weeklySchedule: Omit<ScheduleDay, "dayAbbrev" | "isToday">[] | null;
+  weeklyScheduleLocked: boolean;
 }
 
 interface ProgramsApiResponse {
@@ -54,6 +63,7 @@ export default function GymProgramsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
+  const [weeklyScheduleLocked, setWeeklyScheduleLocked] = useState(false);
   const [loading, setLoading] = useState(true);
   const [hero, setHero] = useState<HeroSplitData | null>(null);
   const [days, setDays] = useState<ScheduleDay[]>([]);
@@ -82,6 +92,7 @@ export default function GymProgramsScreen() {
       );
 
       setActiveInstancePlanId(data.access.activePlanId);
+      setWeeklyScheduleLocked(!!data.weeklyScheduleLocked);
 
       if (activePlan) {
         setHero({
@@ -156,6 +167,11 @@ export default function GymProgramsScreen() {
     // Hook point — wire to a calendar/overview view if/when one exists.
   }
 
+  function handleUpgradePress() {
+    // Hook point — wire to your existing paywall/subscribe screen.
+    router.push("/upgrade" as any);
+  }
+
   if (loading) {
     return (
       <View style={[styles.screen, styles.centered]}>
@@ -204,14 +220,23 @@ export default function GymProgramsScreen() {
         <View style={styles.weekSection}>
           <SPText style={styles.weekLabel}>THIS WEEK</SPText>
 
-          {days.map((day, i) => (
-            <Animated.View
-              key={day.dayIndex}
-              entering={FadeIn.duration(280).delay(120 + i * 60)}
-            >
-              <WeeklyDayCard day={day} onStartSession={handleStartSession} />
-            </Animated.View>
-          ))}
+          {!activeInstancePlanId ? (
+            <GymEmptyWeekState variant="noPlan" onPrimaryPress={loadSchedule} />
+          ) : weeklyScheduleLocked ? (
+            <GymEmptyWeekState
+              variant="locked"
+              onPrimaryPress={handleUpgradePress}
+            />
+          ) : (
+            days.map((day, i) => (
+              <Animated.View
+                key={day.dayIndex}
+                entering={FadeIn.duration(280).delay(120 + i * 60)}
+              >
+                <WeeklyDayCard day={day} onStartSession={handleStartSession} />
+              </Animated.View>
+            ))
+          )}
         </View>
       </ScrollView>
     </View>
