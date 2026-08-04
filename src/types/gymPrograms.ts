@@ -4,14 +4,20 @@ export type MuscleFocus =
   | "LEGS"
   | "SHOULDERS"
   | "ARMS"
+  | "PUSH"
+  | "PULL"
+  | "UPPER"
+  | "LOWER"
+  | "FULLBODY"
+  | "CONDITIONING"
+  | "CORE"
   | "RECOVERY"
   | "REST";
 
 export interface ScheduleExercise {
   id: string;
   name: string;
-  sets: number;
-  reps: number;
+  repsScheme: number[]; // one rep count per set, in order — e.g. [12,12] or [15,12,10]
 }
 
 export interface ScheduleDay {

@@ -10,6 +10,17 @@ interface ExpandableWorkoutListProps {
   onStartSession: () => void;
 }
 
+// A flat scheme (every set the same rep count, e.g. Beginner's [12,12])
+// reads better as compact "2 x 12" gym shorthand. A real pyramid (e.g.
+// Intermediate's [15,12,10]) needs every number shown in order — collapsing
+// it to "3 x 12" would silently hide the descending structure that's the
+// whole point of the scheme.
+function formatRepsScheme(scheme: number[]): string {
+  if (scheme.length === 0) return "";
+  const isFlat = scheme.every((r) => r === scheme[0]);
+  return isFlat ? `${scheme.length} x ${scheme[0]}` : scheme.join(" → ");
+}
+
 export function ExpandableWorkoutList({
   exercises,
   onStartSession,
@@ -26,7 +37,7 @@ export function ExpandableWorkoutList({
         >
           <SPText style={styles.exerciseName}>{ex.name}</SPText>
           <SPText style={styles.exerciseSetsReps}>
-            {ex.sets} x {ex.reps}
+            {formatRepsScheme(ex.repsScheme)}
           </SPText>
         </View>
       ))}
