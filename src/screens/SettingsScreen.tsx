@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { usePushRegistration } from "../hooks/usePushRegistration";
 import {
   View,
   ScrollView,
@@ -913,6 +914,7 @@ export function SettingsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [editSheetOpen, setEditSheetOpen] = useState(false);
   const [notifEnabled, setNotifEnabled] = useState(false);
+  const { registerForPushNotifications } = usePushRegistration();
 
   const fetchData = useCallback(async (isRefresh = false) => {
     if (!isRefresh) {
@@ -942,6 +944,47 @@ export function SettingsScreen() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const prefs = await api.get<{ notificationsEnabled: boolean }>(
+          "/api/notifications/preferences",
+        );
+        setNotifEnabled(prefs?.notificationsEnabled ?? true);
+      } catch (e) {
+        console.error("[SettingsScreen] prefs fetch failed:", e);
+      }
+    })();
+  }, []);
+
+  async function handleNotifToggle(next: boolean) {
+    if (next) {
+      const result = await registerForPushNotifications();
+      if (!result.success) {
+        setNotifEnabled(false);
+        if (result.reason === "permission-denied") {
+          Alert.alert(
+            "Notifications Disabled",
+            "Enable notifications for Sporty Pulse Pro in your device settings to turn this on.",
+          );
+        }
+        return;
+      }
+      setNotifEnabled(true);
+      return;
+    }
+
+    setNotifEnabled(false);
+    try {
+      await api.patch("/api/notifications/preferences", {
+        notificationsEnabled: false,
+      });
+    } catch (e) {
+      console.error("[SettingsScreen] prefs update failed:", e);
+      setNotifEnabled(true); // revert the switch, save failed
+    }
+  }
 
   async function handleSignOut() {
     Alert.alert("Sign Out", "Are you sure you want to sign out?", [
@@ -1118,7 +1161,7 @@ export function SettingsScreen() {
               rightEl={
                 <PremiumSwitch
                   value={notifEnabled}
-                  onChange={setNotifEnabled}
+                  onChange={handleNotifToggle}
                 />
               }
             />

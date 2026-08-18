@@ -12,10 +12,28 @@ import {
   clearSessionToken,
   storeSessionToken,
 } from "../lib/api";
+import * as Notifications from "expo-notifications";
 import { ThemeProvider, useAppTheme } from "../theme/ThemeContext";
 import PrivacyPolicyModal from "../components/ui/PrivacyPolicyModal";
 
 SplashScreen.preventAutoHideAsync();
+
+// ─── Foreground notification display ───────────────────────────────────────
+//
+// Without this, expo-notifications shows nothing while the app is
+// foregrounded — background/killed-state delivery is unaffected either way.
+// Guarded for web since expo-notifications isn't supported there and app.json
+// still declares a web target.
+if (Platform.OS !== "web") {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowBanner: true,
+      shouldShowList: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false, // no badge-count system yet — flip on if you add one
+    }),
+  });
+}
 
 // ─── Auth deep link handling ────────────────────────────────────────────────
 //
@@ -71,6 +89,25 @@ async function handleAuthDeepLink(
   }
 }
 
+const NOTIFICATION_ROUTES: Record<string, string> = {
+  DAILY_HABIT: "/training",
+  STREAK_SAVER: "/training",
+  RESCHEDULE_SUGGESTION: "/training",
+  RECOVERY_NUDGE: "/",
+  MILESTONE: "/progress",
+};
+
+function handleNotificationTap(
+  response: Notifications.NotificationResponse,
+  router: ReturnType<typeof useRouter>,
+) {
+  const data = response.notification.request.content.data as
+    | { type?: string }
+    | undefined;
+  const path = (data?.type && NOTIFICATION_ROUTES[data.type]) || "/";
+  router.push(path as any);
+}
+
 // ─── ThemedApp ────────────────────────────────────────────────────────────────
 // Receives the resolved auth state so it can redirect declaratively
 // *after* the Stack navigator is mounted — avoids the race condition where
@@ -102,6 +139,23 @@ function ThemedApp({ hasToken, skipRedirect }: ThemedAppProps) {
     }, 0);
     return () => clearTimeout(id);
   }, [hasToken, skipRedirect]);
+
+  // Notification tap routing — cold start (app launched via tap) and warm
+  // (app already running, tap arrives as an event), same split as the auth
+  // deep link handling above. Guarded on web for the same reason as the
+  // notification handler.
+  useEffect(() => {
+    if (!hasToken || Platform.OS === "web") return;
+
+    Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (response) handleNotificationTap(response, router);
+    });
+
+    const sub = Notifications.addNotificationResponseReceivedListener(
+      (response) => handleNotificationTap(response, router),
+    );
+    return () => sub.remove();
+  }, [hasToken]);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

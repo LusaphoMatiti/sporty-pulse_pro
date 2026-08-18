@@ -47,10 +47,7 @@
               "scheme": "sportypulsepro"
             }
           ],
-          "category": [
-            "BROWSABLE",
-            "DEFAULT"
-          ]
+          "category": ["BROWSABLE", "DEFAULT"]
         }
       ]
     },
@@ -62,10 +59,7 @@
         "NSCameraUsageDescription": "Sporty Pulse Pro uses your camera to take a profile picture.",
         "NSPhotoLibraryUsageDescription": "Sporty Pulse Pro accesses your photo library so you can choose a profile picture.",
         "NSPhotoLibraryAddUsageDescription": "Sporty Pulse Pro saves images to your photo library.",
-        "UIBackgroundModes": [
-          "fetch",
-          "remote-notification"
-        ]
+        "UIBackgroundModes": ["fetch", "remote-notification"]
       }
     },
     "web": {
@@ -87,6 +81,12 @@
         {
           "photosPermission": "Sporty Pulse Pro accesses your photos to let you set a profile picture.",
           "cameraPermission": "Sporty Pulse Pro uses your camera to take a profile picture."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#C8F135"
         }
       ]
     ],
