@@ -948,10 +948,11 @@ export function SettingsScreen() {
   useEffect(() => {
     (async () => {
       try {
-        const prefs = await api.get<{ notificationsEnabled: boolean }>(
-          "/api/notifications/preferences",
-        );
-        setNotifEnabled(prefs?.notificationsEnabled ?? true);
+        const res = await api.get<{
+          success: boolean;
+          data: { notificationsEnabled: boolean };
+        }>("/api/notifications/preferences");
+        setNotifEnabled(res?.data?.notificationsEnabled ?? true);
       } catch (e) {
         console.error("[SettingsScreen] prefs fetch failed:", e);
       }
