@@ -16,6 +16,7 @@
     },
     "android": {
       "package": "com.sportypulsepro.app",
+      "googleServicesFile": "./google-services.json",
       "versionCode": 1,
       "minSdkVersion": 24,
       "compileSdkVersion": 35,
