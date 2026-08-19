@@ -968,22 +968,30 @@ export function SettingsScreen() {
             "Notifications Disabled",
             "Enable notifications for Sporty Pulse Pro in your device settings to turn this on.",
           );
+        } else if (result.reason === "not-device") {
+          Alert.alert(
+            "Not Available",
+            "Push notifications aren't available in the simulator — test on a physical device.",
+          );
+        } else {
+          Alert.alert(
+            "Something Went Wrong",
+            "Couldn't enable notifications. Please try again.",
+          );
         }
         return;
       }
       setNotifEnabled(true);
+      try {
+        await api.patch("/api/notifications/preferences", {
+          notificationsEnabled: true,
+        });
+      } catch (e) {
+        console.error("[SettingsScreen] enable persist failed:", e);
+      }
       return;
     }
-
-    setNotifEnabled(false);
-    try {
-      await api.patch("/api/notifications/preferences", {
-        notificationsEnabled: false,
-      });
-    } catch (e) {
-      console.error("[SettingsScreen] prefs update failed:", e);
-      setNotifEnabled(true); // revert the switch, save failed
-    }
+    // off-path unchanged
   }
 
   async function handleSignOut() {
