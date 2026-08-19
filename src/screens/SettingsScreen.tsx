@@ -992,7 +992,16 @@ export function SettingsScreen() {
       }
       return;
     }
-    // off-path unchanged
+
+    setNotifEnabled(false);
+    try {
+      await api.patch("/api/notifications/preferences", {
+        notificationsEnabled: false,
+      });
+    } catch (e) {
+      console.error("[SettingsScreen] prefs update failed:", e);
+      setNotifEnabled(true); // revert the switch, save failed
+    }
   }
 
   async function handleSignOut() {
