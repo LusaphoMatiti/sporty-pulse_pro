@@ -29,7 +29,7 @@ import { SPText } from "../../components/ui/SPText";
 import { SPButton } from "../../components/ui/SPButton";
 import { SPIcon } from "../../components/icons/SPIcon";
 import { AuthInput } from "../../components/settings/AuthInput";
-import { api, storeSessionToken } from "../../lib/api";
+import { api, storeSessionToken, ApiRequestError } from "../../lib/api";
 import { spring } from "../../theme";
 import { LoginSkeleton } from "./LoginSkeleton";
 
@@ -130,14 +130,31 @@ function GoogleButton({
 
 // ─── Error banner ─────────────────────────────────────────────────────────────
 
-function ErrorBanner({ message }: { message: string }) {
+function ErrorBanner({
+  message,
+  actionLabel,
+  onActionPress,
+}: {
+  message: string;
+  actionLabel?: string;
+  onActionPress?: () => void;
+}) {
   return (
     <View style={styles.errorBox}>
       <SPIcon name="warning" size={14} color={T.danger} />
-      {/* caption variant: 12px regular — matches original spec; color overridden to danger */}
-      <SPText variant="caption" color={T.danger} style={styles.errorFlex}>
-        {message}
-      </SPText>
+      <View style={styles.errorFlex}>
+        {/* caption variant: 12px regular — matches original spec; color overridden to danger */}
+        <SPText variant="caption" color={T.danger}>
+          {message}
+        </SPText>
+        {!!actionLabel && !!onActionPress && (
+          <Pressable onPress={onActionPress} style={styles.errorActionBtn}>
+            <SPText variant="caption" color={T.accent}>
+              {actionLabel}
+            </SPText>
+          </Pressable>
+        )}
+      </View>
     </View>
   );
 }
@@ -153,6 +170,7 @@ export function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState("");
+  const [errorCode, setErrorCode] = useState<string | null>(null);
 
   // Staggered entrance — 3 layers, 80 ms stagger
   const op1 = useSharedValue(0);
@@ -240,6 +258,7 @@ export function LoginScreen() {
     }
     setLoading(true);
     setError("");
+    setErrorCode(null);
     try {
       const res = await api.post<{
         success?: boolean;
@@ -262,8 +281,13 @@ export function LoginScreen() {
       } else {
         setError(ERROR_MESSAGES.CredentialsSignin);
       }
-    } catch {
-      setError(ERROR_MESSAGES.CredentialsSignin);
+    } catch (err) {
+      if (err instanceof ApiRequestError && err.code === "ACCOUNT_NOT_FOUND") {
+        setErrorCode("ACCOUNT_NOT_FOUND");
+        setError("No account found for that email.");
+      } else {
+        setError(ERROR_MESSAGES.CredentialsSignin);
+      }
     } finally {
       setLoading(false);
     }
@@ -373,7 +397,19 @@ export function LoginScreen() {
               Log In
             </SPText>
 
-            {!!error && <ErrorBanner message={error} />}
+            {!!error && (
+              <ErrorBanner
+                message={error}
+                actionLabel={
+                  errorCode === "ACCOUNT_NOT_FOUND" ? "Sign up" : undefined
+                }
+                onActionPress={
+                  errorCode === "ACCOUNT_NOT_FOUND"
+                    ? handleGoToRegister
+                    : undefined
+                }
+              />
+            )}
 
             <View style={styles.fields}>
               <AuthInput
@@ -381,6 +417,7 @@ export function LoginScreen() {
                 value={email}
                 onChangeText={(t) => {
                   setError("");
+                  setErrorCode(null);
                   setEmail(t);
                 }}
               />
@@ -390,6 +427,7 @@ export function LoginScreen() {
                 value={password}
                 onChangeText={(t) => {
                   setError("");
+                  setErrorCode(null);
                   setPassword(t);
                 }}
               />
@@ -541,7 +579,8 @@ const styles = StyleSheet.create({
     padding: T.s16,
   },
   // flex:1 can't go on SPText directly via variant — kept as a supplemental style
-  errorFlex: { flex: 1 },
+  errorFlex: { flex: 1, gap: T.s4 },
+  errorActionBtn: { alignSelf: "flex-start" },
 
   footer: {
     flexDirection: "row",

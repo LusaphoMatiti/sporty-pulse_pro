@@ -1193,66 +1193,6 @@ export function SettingsScreen() {
             />
           </GroupedCard>
         </Animated.View>
-        <Pressable
-          onPress={async () => {
-            try {
-              const res = await api.get("/api/notifications/test-send"); // no ?type=
-              console.log("[TEST PUSH]", res);
-            } catch (e) {
-              console.error("[TEST PUSH] failed:", e);
-            }
-          }}
-          style={{
-            padding: 16,
-            backgroundColor: "#C8F135",
-            borderRadius: 8,
-            margin: 16,
-          }}
-        >
-          <SPText
-            style={{ color: "#000", fontWeight: "600", textAlign: "center" }}
-          >
-            Send Test Push
-          </SPText>
-        </Pressable>
-
-        <Pressable
-          onPress={async () => {
-            const scenarios = [
-              "STREAK_SAVER",
-              "RECOVERY_NUDGE",
-              "RECOVERY_READY",
-              "RESCHEDULE_SUGGESTION",
-              "DAILY_HABIT",
-              "MILESTONE_10_WORKOUTS",
-              "MILESTONE_FIRST_WEEK",
-              "MILESTONE_30_DAY_STREAK",
-            ];
-            for (const scenario of scenarios) {
-              try {
-                const res = await api.get(
-                  `/api/notifications/test-scenario?scenario=${scenario}`,
-                );
-                console.log(`[SCENARIO ${scenario}]`, res);
-              } catch (e) {
-                console.error(`[SCENARIO ${scenario}] failed:`, e);
-              }
-              await new Promise((resolve) => setTimeout(resolve, 2000));
-            }
-          }}
-          style={{
-            padding: 16,
-            backgroundColor: "#8B5CF6",
-            borderRadius: 8,
-            margin: 16,
-          }}
-        >
-          <SPText
-            style={{ color: "#fff", fontWeight: "600", textAlign: "center" }}
-          >
-            Run Scenario Tests
-          </SPText>
-        </Pressable>
 
         {/* ── Subscription ── */}
         <Animated.View

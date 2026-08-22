@@ -21,6 +21,22 @@ export async function clearSessionToken() {
   await SecureStore.deleteItemAsync(SESSION_KEY);
 }
 
+// ─── Error class ─────────────────────────────────────────────────────────────
+// Routes on the backend respond with { success: false, error: { code, message } }
+// (see lib/api-response.ts) on failure. This carries that code/message through
+// instead of forcing callers to string-match the formatted Error below.
+
+export class ApiRequestError extends Error {
+  constructor(
+    public readonly code: string,
+    message: string,
+    public readonly status: number,
+  ) {
+    super(message);
+    this.name = "ApiRequestError";
+  }
+}
+
 // ─── Core fetch wrapper ───────────────────────────────────────────────────────
 
 interface RequestOptions {
@@ -55,6 +71,20 @@ async function request<T = unknown>(
   console.log("Body:", responseText.slice(0, 300));
 
   if (!response.ok) {
+    try {
+      const parsed = responseText ? JSON.parse(responseText) : null;
+      if (parsed?.success === false && parsed?.error?.code) {
+        throw new ApiRequestError(
+          parsed.error.code,
+          parsed.error.message ?? "Request failed",
+          response.status,
+        );
+      }
+    } catch (e) {
+      if (e instanceof ApiRequestError) throw e;
+      // body wasn't the expected { success, error } envelope — fall through
+      // to the generic error below
+    }
     throw new Error(
       `API ${method} ${path} → ${response.status}: ${responseText}`,
     );
