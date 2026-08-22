@@ -364,12 +364,22 @@ export function LoginScreen() {
         redirectUrl,
       );
 
-      if (result.type !== "success" || !result.url) return;
+      console.log("=== GOOGLE AUTH RESULT ===");
+      console.log("type:", result.type);
+      console.log("url:", "url" in result ? result.url : "(none)");
+
+      if (result.type !== "success" || !result.url) {
+        console.log("=== GOOGLE AUTH: bailing, not a success result ===");
+        return;
+      }
 
       const parsed = new URL(result.url);
       const token = parsed.searchParams.get("token");
       const isNew = parsed.searchParams.get("isNew") === "true";
       const errorParam = parsed.searchParams.get("error");
+
+      console.log("=== GOOGLE AUTH PARSED ===");
+      console.log("hasToken:", !!token, "isNew:", isNew, "error:", errorParam);
 
       if (!token) {
         if (errorParam === "no_user") {
@@ -384,6 +394,7 @@ export function LoginScreen() {
       await storeSessionToken(token);
       router.replace(isNew ? ("/welcome" as any) : ("/welcome-back" as any));
     } catch (e: any) {
+      console.log("=== GOOGLE AUTH ERROR ===", e?.message ?? e);
       setError("Google sign-in failed.");
     } finally {
       setGoogleLoading(false);
