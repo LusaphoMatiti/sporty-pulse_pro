@@ -4,6 +4,7 @@ import { Lock, CalendarClock, RefreshCw } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import { SPText } from "../../components/ui/SPText";
 import { GT } from "../../theme/gymProgramsTheme";
+import { useResponsive } from "../../hooks/useResponsive";
 
 type GymEmptyWeekStateVariant = "locked" | "noPlan";
 
@@ -41,14 +42,33 @@ export function GymEmptyWeekState({
   onPrimaryPress,
 }: GymEmptyWeekStateProps) {
   const { Icon, title, body, ctaLabel } = COPY[variant];
+  const { rs } = useResponsive();
+
+  const cardPadding = rs(16, 18, 20, 22);
+  const iconWrapSize = rs(44, 48, 52, 54);
+  const iconSize = rs(20, 22, 24, 25);
+  const titleSize = rs(15, 16, 17, 18);
+  const bodySize = rs(12, 13, 13, 14);
+  const buttonHeight = rs(40, 44, 46, 48);
+  const buttonPaddingH = rs(18, 20, 22, 24);
+  const buttonLabelSize = rs(11, 12, 12, 13);
 
   return (
-    <View style={styles.card}>
-      <View style={styles.iconWrap}>
-        <Icon size={26} color={GT.accent} strokeWidth={1.75} />
+    <View style={[styles.card, { padding: cardPadding }]}>
+      <View
+        style={[
+          styles.iconWrap,
+          {
+            width: iconWrapSize,
+            height: iconWrapSize,
+            borderRadius: iconWrapSize / 2,
+          },
+        ]}
+      >
+        <Icon size={iconSize} color={GT.accent} strokeWidth={1.75} />
       </View>
-      <SPText style={styles.title}>{title}</SPText>
-      <SPText style={styles.body}>{body}</SPText>
+      <SPText style={[styles.title, { fontSize: titleSize }]}>{title}</SPText>
+      <SPText style={[styles.body, { fontSize: bodySize }]}>{body}</SPText>
       <Pressable
         onPress={() => {
           try {
@@ -60,13 +80,16 @@ export function GymEmptyWeekState({
         }}
         style={({ pressed }) => [
           styles.button,
+          { height: buttonHeight, paddingHorizontal: buttonPaddingH },
           pressed && styles.buttonPressed,
         ]}
       >
         {variant === "noPlan" ? (
-          <RefreshCw size={14} color={GT.void} strokeWidth={2} />
+          <RefreshCw size={13} color={GT.void} strokeWidth={2} />
         ) : null}
-        <SPText style={styles.buttonLabel}>{ctaLabel}</SPText>
+        <SPText style={[styles.buttonLabel, { fontSize: buttonLabelSize }]}>
+          {ctaLabel}
+        </SPText>
       </Pressable>
     </View>
   );
@@ -78,14 +101,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: GT.border,
     backgroundColor: GT.surface,
-    padding: GT.s24,
     alignItems: "center",
     gap: GT.s8,
   },
   iconWrap: {
-    width: 56,
-    height: 56,
-    borderRadius: GT.r999,
     backgroundColor: GT.accentDim,
     alignItems: "center",
     justifyContent: "center",
@@ -93,16 +112,14 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: GT.font.display,
-    fontSize: 19,
     color: GT.text,
     textAlign: "center",
   },
   body: {
     fontFamily: GT.font.medium,
-    fontSize: 14,
     color: GT.muted,
     textAlign: "center",
-    lineHeight: 20,
+    lineHeight: 19,
     marginBottom: GT.s8,
   },
   button: {
@@ -110,8 +127,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: GT.s8,
-    height: 48,
-    paddingHorizontal: GT.s24,
     borderRadius: GT.r999,
     backgroundColor: GT.accent,
   },
@@ -120,7 +135,6 @@ const styles = StyleSheet.create({
   },
   buttonLabel: {
     fontFamily: GT.font.semiBold,
-    fontSize: 13,
     letterSpacing: 0.8,
     color: GT.void,
   },

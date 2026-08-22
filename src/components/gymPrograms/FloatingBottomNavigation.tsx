@@ -1,11 +1,10 @@
-// components/gymPrograms/FloatingBottomNavigation.tsx
-
 import React from "react";
 import { View, Pressable, StyleSheet } from "react-native";
 import * as Haptics from "expo-haptics";
 import { Home, Dumbbell, TrendingUp, Settings } from "lucide-react-native";
 import { SPText } from "../../components/ui/SPText";
 import { GT } from "../../theme/gymProgramsTheme";
+import { useResponsive } from "../../hooks/useResponsive";
 import type { BottomNavTab } from "../../types/gymPrograms";
 
 interface NavItem {
@@ -36,10 +35,29 @@ export function FloatingBottomNavigation({
   onTabPress,
   bottomInset,
 }: FloatingBottomNavigationProps) {
+  const { rs } = useResponsive();
+
+  const sideMargin = rs(12, 14, 15, 16);
+  const paddingTop = rs(6, 7, 8, 8);
+  const paddingBottom = rs(9, 10, 11, 12);
+  const iconWrapSize = rs(30, 32, 34, 36);
+  const iconSize = rs(17, 18, 19, 20);
+  const labelSize = rs(9, 9, 10, 10);
+  const itemGap = rs(4, 5, 6, 6);
+
   return (
-    <View style={[styles.wrap, { bottom: bottomInset + GT.s12 }]}>
-      <View style={styles.blur}>
-        <View style={styles.indicatorTrack}>
+    <View
+      style={[
+        styles.wrap,
+        {
+          left: sideMargin,
+          right: sideMargin,
+          bottom: bottomInset + GT.s12,
+        },
+      ]}
+    >
+      <View style={[styles.blur, { paddingTop, paddingBottom }]}>
+        <View style={[styles.indicatorTrack, { marginHorizontal: sideMargin }]}>
           <View
             style={[
               styles.indicator,
@@ -63,18 +81,32 @@ export function FloatingBottomNavigation({
                   }
                   onTabPress(item.key);
                 }}
-                style={styles.item}
+                style={[styles.item, { gap: itemGap }]}
               >
                 <View
-                  style={[styles.iconWrap, isActive && styles.iconWrapActive]}
+                  style={[
+                    styles.iconWrap,
+                    {
+                      width: iconWrapSize,
+                      height: iconWrapSize,
+                      borderRadius: iconWrapSize / 2,
+                    },
+                    isActive && styles.iconWrapActive,
+                  ]}
                 >
                   <item.Icon
-                    size={20}
+                    size={iconSize}
                     color={isActive ? GT.accent : GT.muted}
                     strokeWidth={1.75}
                   />
                 </View>
-                <SPText style={[styles.label, isActive && styles.labelActive]}>
+                <SPText
+                  style={[
+                    styles.label,
+                    { fontSize: labelSize },
+                    isActive && styles.labelActive,
+                  ]}
+                >
                   {item.label}
                 </SPText>
               </Pressable>
@@ -89,21 +121,16 @@ export function FloatingBottomNavigation({
 const styles = StyleSheet.create({
   wrap: {
     position: "absolute",
-    left: GT.s16,
-    right: GT.s16,
     borderRadius: GT.r24,
     overflow: "hidden",
     borderWidth: 1,
     borderColor: GT.border,
   },
   blur: {
-    paddingTop: GT.s8,
-    paddingBottom: GT.s12,
     backgroundColor: "rgba(19,23,26,0.72)",
   },
   indicatorTrack: {
     height: 2,
-    marginHorizontal: GT.s16,
     marginBottom: GT.s8,
   },
   indicator: {
@@ -119,12 +146,8 @@ const styles = StyleSheet.create({
   item: {
     flex: 1,
     alignItems: "center",
-    gap: GT.s6,
   },
   iconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: GT.r999,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -133,7 +156,6 @@ const styles = StyleSheet.create({
   },
   label: {
     fontFamily: GT.font.medium,
-    fontSize: 10,
     letterSpacing: 0.6,
     color: GT.muted,
   },

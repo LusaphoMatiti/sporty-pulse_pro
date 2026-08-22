@@ -3,6 +3,7 @@ import { View, Pressable, StyleSheet } from "react-native";
 import * as Haptics from "expo-haptics";
 import { SPText } from "../../components/ui/SPText";
 import { GT } from "../../theme/gymProgramsTheme";
+import { useResponsive } from "../../hooks/useResponsive";
 import type { ScheduleExercise } from "../../types/gymPrograms";
 
 interface ExpandableWorkoutListProps {
@@ -25,18 +26,36 @@ export function ExpandableWorkoutList({
   exercises,
   onStartSession,
 }: ExpandableWorkoutListProps) {
+  const { rs } = useResponsive();
+
+  const containerPaddingTop = rs(12, 14, 15, 16);
+  const rowPaddingV = rs(7, 8, 9, 10);
+  const exerciseNameSize = rs(13, 14, 14, 15);
+  const exerciseSetsRepsSize = rs(12, 13, 13, 14);
+  const buttonHeight = rs(42, 46, 48, 50);
+  const buttonMarginTop = rs(12, 14, 15, 16);
+  const buttonLabelSize = rs(12, 13, 13, 14);
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: containerPaddingTop }]}>
       {exercises.map((ex, i) => (
         <View
           key={ex.id}
           style={[
             styles.exerciseRow,
+            { paddingVertical: rowPaddingV },
             i === exercises.length - 1 && styles.exerciseRowLast,
           ]}
         >
-          <SPText style={styles.exerciseName}>{ex.name}</SPText>
-          <SPText style={styles.exerciseSetsReps}>
+          <SPText style={[styles.exerciseName, { fontSize: exerciseNameSize }]}>
+            {ex.name}
+          </SPText>
+          <SPText
+            style={[
+              styles.exerciseSetsReps,
+              { fontSize: exerciseSetsRepsSize },
+            ]}
+          >
             {formatRepsScheme(ex.repsScheme)}
           </SPText>
         </View>
@@ -53,10 +72,15 @@ export function ExpandableWorkoutList({
         }}
         style={({ pressed }) => [
           styles.startButton,
+          { height: buttonHeight, marginTop: buttonMarginTop },
           pressed && styles.startButtonPressed,
         ]}
       >
-        <SPText style={styles.startButtonLabel}>START SESSION</SPText>
+        <SPText
+          style={[styles.startButtonLabel, { fontSize: buttonLabelSize }]}
+        >
+          START SESSION
+        </SPText>
       </Pressable>
     </View>
   );
@@ -64,7 +88,6 @@ export function ExpandableWorkoutList({
 
 const styles = StyleSheet.create({
   container: {
-    paddingTop: GT.s16,
     paddingBottom: GT.s8,
     gap: GT.s4,
   },
@@ -72,7 +95,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: GT.s10,
     borderBottomWidth: 1,
     borderBottomColor: GT.border,
   },
@@ -81,17 +103,13 @@ const styles = StyleSheet.create({
   },
   exerciseName: {
     fontFamily: GT.font.medium,
-    fontSize: 15,
     color: GT.text,
   },
   exerciseSetsReps: {
     fontFamily: GT.font.medium,
-    fontSize: 14,
     color: GT.muted,
   },
   startButton: {
-    marginTop: GT.s16,
-    height: 52,
     borderRadius: GT.r999,
     backgroundColor: GT.accent,
     alignItems: "center",
@@ -102,7 +120,6 @@ const styles = StyleSheet.create({
   },
   startButtonLabel: {
     fontFamily: GT.font.semiBold,
-    fontSize: 14,
     letterSpacing: 1,
     color: GT.void,
   },

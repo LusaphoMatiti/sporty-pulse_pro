@@ -14,6 +14,7 @@ import { MUSCLE_ICON_MAP, DefaultFocusIcon } from "../icons/MuscleIcons";
 import { resolveMuscleFocus } from "../../../contants/gymFocusMap";
 import { MetadataRow } from "./MetadataRow";
 import { ExpandableWorkoutList } from "./ExpandableWorkoutList";
+import { useResponsive } from "../../hooks/useResponsive";
 import type { ScheduleDay } from "../../types/gymPrograms";
 
 interface WeeklyDayCardProps {
@@ -22,6 +23,7 @@ interface WeeklyDayCardProps {
 }
 
 export function WeeklyDayCard({ day, onStartSession }: WeeklyDayCardProps) {
+  const { rs } = useResponsive();
   const [expanded, setExpanded] = useState(false);
   const [contentHeight, setContentHeight] = useState(0);
 
@@ -38,6 +40,26 @@ export function WeeklyDayCard({ day, onStartSession }: WeeklyDayCardProps) {
   const IconComp = day.isRestDay
     ? MUSCLE_ICON_MAP.REST
     : (MUSCLE_ICON_MAP[resolveMuscleFocus(day.focus)] ?? DefaultFocusIcon);
+
+  // This row was fixed at minHeight 88 / 48px icon circle regardless of
+  // screen size — the biggest reason the weekly list read oversized.
+  // Scaling per breakpoint keeps small phones compact and lets larger
+  // phones breathe slightly more, without any single tier looking huge.
+  const rowMinHeight = rs(64, 70, 74, 78);
+  const rowPaddingV = rs(10, 12, 13, 14);
+  const rowPaddingH = rs(12, 14, 15, 16);
+  const rowGap = rs(8, 10, 10, 12);
+  const dayLabelWidth = rs(40, 44, 46, 48);
+  const dayAbbrevSize = rs(11, 12, 12, 13);
+  const dividerHeight = rs(28, 32, 34, 36);
+  const iconWrapSize = rs(36, 40, 42, 44);
+  const iconSize = rs(16, 18, 19, 20);
+  const titleSize = rs(13, 14, 15, 16);
+  const subtitleSize = rs(11, 12, 12, 13);
+  const arrowCircleSize = rs(26, 28, 30, 30);
+  const cardMarginBottom = rs(8, 10, 10, 12);
+  const expandPaddingH = rs(12, 14, 15, 16);
+  const expandPaddingBottom = rs(12, 14, 15, 16);
 
   function toggleExpand() {
     if (isLocked) return;
@@ -74,6 +96,7 @@ export function WeeklyDayCard({ day, onStartSession }: WeeklyDayCardProps) {
     <Animated.View
       style={[
         styles.card,
+        { marginBottom: cardMarginBottom },
         day.isToday && styles.cardToday,
         isLocked && styles.cardLocked,
         cardAnimatedStyle,
@@ -89,10 +112,24 @@ export function WeeklyDayCard({ day, onStartSession }: WeeklyDayCardProps) {
         onPressOut={() => {
           pressScale.value = withSpring(1, GYM_PRESS_SPRING);
         }}
-        style={styles.pressableRow}
+        style={[
+          styles.pressableRow,
+          {
+            minHeight: rowMinHeight,
+            paddingVertical: rowPaddingV,
+            paddingHorizontal: rowPaddingH,
+            gap: rowGap,
+          },
+        ]}
       >
-        <View style={styles.dayLabelCol}>
-          <SPText style={[styles.dayAbbrev, isLocked && styles.mutedText]}>
+        <View style={[styles.dayLabelCol, { width: dayLabelWidth }]}>
+          <SPText
+            style={[
+              styles.dayAbbrev,
+              { fontSize: dayAbbrevSize },
+              isLocked && styles.mutedText,
+            ]}
+          >
             {day.dayAbbrev}
           </SPText>
           {day.isToday ? (
@@ -102,11 +139,21 @@ export function WeeklyDayCard({ day, onStartSession }: WeeklyDayCardProps) {
           ) : null}
         </View>
 
-        <View style={styles.divider} />
+        <View style={[styles.divider, { height: dividerHeight }]} />
 
-        <View style={[styles.iconWrap, isLocked && styles.iconWrapLocked]}>
+        <View
+          style={[
+            styles.iconWrap,
+            {
+              width: iconWrapSize,
+              height: iconWrapSize,
+              borderRadius: iconWrapSize / 2,
+            },
+            isLocked && styles.iconWrapLocked,
+          ]}
+        >
           <IconComp
-            size={22}
+            size={iconSize}
             color={isLocked ? GT.muted2 : GT.accent}
             strokeWidth={1.5}
           />
@@ -114,12 +161,22 @@ export function WeeklyDayCard({ day, onStartSession }: WeeklyDayCardProps) {
 
         <View style={styles.textCol}>
           <SPText
-            style={[styles.title, isLocked && styles.mutedTitle]}
+            style={[
+              styles.title,
+              { fontSize: titleSize },
+              isLocked && styles.mutedTitle,
+            ]}
             numberOfLines={1}
           >
             {titleLabel.toUpperCase()}
           </SPText>
-          <SPText style={[styles.subtitle, isLocked && styles.mutedText]}>
+          <SPText
+            style={[
+              styles.subtitle,
+              { fontSize: subtitleSize },
+              isLocked && styles.mutedText,
+            ]}
+          >
             {sessionCountLabel}
           </SPText>
           {!day.isRestDay ? (
@@ -134,13 +191,27 @@ export function WeeklyDayCard({ day, onStartSession }: WeeklyDayCardProps) {
 
         <View style={styles.actionCol}>
           {isLocked ? (
-            <Lock size={18} color={GT.muted2} strokeWidth={1.75} />
+            <Lock
+              size={rs(16, 17, 18, 18)}
+              color={GT.muted2}
+              strokeWidth={1.75}
+            />
           ) : (
-            <Animated.View style={[styles.arrowCircle, chevronAnimatedStyle]}>
+            <Animated.View
+              style={[
+                styles.arrowCircle,
+                {
+                  width: arrowCircleSize,
+                  height: arrowCircleSize,
+                  borderRadius: arrowCircleSize / 2,
+                },
+                chevronAnimatedStyle,
+              ]}
+            >
               {expanded ? (
-                <ChevronDown size={16} color={GT.accent} strokeWidth={2} />
+                <ChevronDown size={14} color={GT.accent} strokeWidth={2} />
               ) : (
-                <ChevronRight size={16} color={GT.text} strokeWidth={2} />
+                <ChevronRight size={14} color={GT.text} strokeWidth={2} />
               )}
             </Animated.View>
           )}
@@ -150,7 +221,13 @@ export function WeeklyDayCard({ day, onStartSession }: WeeklyDayCardProps) {
       {!isLocked ? (
         <Animated.View style={[styles.expandWrap, expandAnimatedStyle]}>
           <View
-            style={styles.expandMeasure}
+            style={[
+              styles.expandMeasure,
+              {
+                paddingHorizontal: expandPaddingH,
+                paddingBottom: expandPaddingBottom,
+              },
+            ]}
             onLayout={handleMeasure}
             pointerEvents={expanded ? "auto" : "none"}
           >
@@ -172,7 +249,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: GT.border,
     backgroundColor: GT.surface,
-    marginBottom: GT.s12,
     overflow: "hidden",
   },
   cardToday: {
@@ -191,18 +267,12 @@ const styles = StyleSheet.create({
   pressableRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: GT.s16,
-    paddingHorizontal: GT.s16,
-    gap: GT.s12,
-    minHeight: 88,
   },
   dayLabelCol: {
-    width: 52,
     gap: GT.s4,
   },
   dayAbbrev: {
     fontFamily: GT.font.semiBold,
-    fontSize: 13,
     letterSpacing: 0.5,
     color: GT.text,
   },
@@ -215,19 +285,15 @@ const styles = StyleSheet.create({
   },
   todayBadgeText: {
     fontFamily: GT.font.semiBold,
-    fontSize: 9,
+    fontSize: 8,
     letterSpacing: 0.5,
     color: GT.void,
   },
   divider: {
     width: 1,
-    height: 40,
     backgroundColor: GT.border,
   },
   iconWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: GT.r24,
     borderWidth: 1,
     borderColor: GT.accentDim,
     alignItems: "center",
@@ -242,7 +308,6 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: GT.font.display,
-    fontSize: 17,
     color: GT.text,
     letterSpacing: 0.2,
   },
@@ -251,21 +316,17 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontFamily: GT.font.medium,
-    fontSize: 13,
     color: GT.muted,
   },
   mutedText: {
     color: GT.muted2,
   },
   actionCol: {
-    width: 32,
+    width: 28,
     alignItems: "center",
     justifyContent: "center",
   },
   arrowCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: GT.r999,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.20)",
     alignItems: "center",
@@ -275,8 +336,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   expandMeasure: {
-    paddingHorizontal: GT.s16,
-    paddingBottom: GT.s16,
+    // horizontal/bottom padding applied responsively inline above
   },
   expandDivider: {
     height: 1,

@@ -28,6 +28,10 @@ import { GymHeroCard } from "../components/gymPrograms/GymHeroCard";
 import { WeeklyDayCard } from "../components/gymPrograms/WeeklyDayCard";
 import type { ScheduleDay, HeroSplitData } from "../types/gymPrograms";
 import { GymEmptyWeekState } from "../components/gymPrograms/GymEmptyWeekState";
+// NOTE: adjust this path if useResponsive lives elsewhere in your tree —
+// matched against the existing "../hooks/Usetabbarheight" import pattern
+// used by ProgramsScreen.tsx.
+import { useResponsive } from "../hooks/useResponsive";
 
 // ─── API response shape (matches the additive fields on GET /api/programs) ──
 
@@ -62,6 +66,7 @@ function getTodayIndex(): number {
 export default function GymProgramsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { rs } = useResponsive();
 
   const [weeklyScheduleLocked, setWeeklyScheduleLocked] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -145,16 +150,26 @@ export default function GymProgramsScreen() {
   }
 
   function handleStartSession(day: ScheduleDay) {
-    // Hook point — wire to your existing session-launch route/params.
-    // Session-level launching lives outside this screen's scope (it wasn't
-    // part of the files I have), so confirm the pathname/params below
-    // match your actual session-launch route before shipping.
+    // IMPORTANT: this screen only has the catalog plan id
+    // (access.activePlanId from /api/programs), not the WorkoutPlanInstance
+    // id that the real session route needs
+    // (/(tabs)/training/session/[instanceId]/[sessionNumber]). Rather than
+    // guess at an instance id we don't have, we route through the Training
+    // tab itself and let it resolve instanceId + currentSession from its
+    // own verified /api/training fetch — the same trusted path Home users
+    // already go through via TrainingScreen's handleStartNow().
+    //
+    // Trade-off: this starts whatever /api/training reports as the plan's
+    // *current* session, not necessarily the specific day card the user
+    // tapped (e.g. tapping Friday's card on a Tuesday still starts the
+    // next session in sequence, same as Home's "Start Now"). If you need
+    // strict day-to-session matching instead, that requires confirming
+    // day.sessionNumber always equals the backend's currentSession, and
+    // likely a small TrainingScreen change to accept an explicit session
+    // override — let me know if that's needed and I'll wire it up.
     router.push({
-      pathname: "/session",
-      params: {
-        planId: activeInstancePlanId ?? "",
-        sessionNumber: String(day.sessionNumber ?? ""),
-      },
+      pathname: "/(tabs)/training",
+      params: { autoStart: "1" },
     });
   }
 
@@ -172,6 +187,15 @@ export default function GymProgramsScreen() {
     router.push("/upgrade" as any);
   }
 
+  // ─── Responsive values ────────────────────────────────────────────────
+  // Everything here was previously fixed-pixel (GT.sNN), which is why the
+  // screen read "too big" on smaller phones and didn't tighten up at all
+  // on larger ones. These scale per breakpoint instead.
+  const calendarButtonSize = rs(36, 38, 40, 42);
+  const contentPaddingH = rs(12, 14, 16, 18);
+  const headerMarginBottom = rs(14, 16, 18, 20);
+  const heroMarginBottom = rs(14, 16, 18, 20);
+
   if (loading) {
     return (
       <View style={[styles.screen, styles.centered]}>
@@ -186,16 +210,22 @@ export default function GymProgramsScreen() {
         contentContainerStyle={[
           styles.scrollContent,
           {
-            paddingTop: insets.top + GT.s16,
-            paddingBottom: insets.bottom + 140,
+            paddingHorizontal: contentPaddingH,
+            paddingTop: insets.top + rs(8, 10, 12, 12),
+            paddingBottom: insets.bottom + rs(110, 120, 130, 140),
           },
         ]}
         showsVerticalScrollIndicator={false}
       >
-        <Animated.View entering={FadeIn.duration(280)} style={styles.header}>
+        <Animated.View
+          entering={FadeIn.duration(280)}
+          style={[styles.header, { marginBottom: headerMarginBottom }]}
+        >
           <View style={styles.headerTextCol}>
-            <SPText style={styles.title}>Gym Programs</SPText>
-            <SPText style={styles.subtitle}>
+            <SPText style={[styles.title, { fontSize: rs(22, 24, 26, 28) }]}>
+              Gym Programs
+            </SPText>
+            <SPText style={[styles.subtitle, { fontSize: rs(12, 13, 13, 14) }]}>
               Your weekly training schedule.
             </SPText>
           </View>
@@ -204,21 +234,46 @@ export default function GymProgramsScreen() {
             onPress={handleCalendarPress}
             style={({ pressed }) => [
               styles.calendarButton,
+              {
+                width: calendarButtonSize,
+                height: calendarButtonSize,
+                borderRadius: calendarButtonSize / 2,
+              },
               pressed && styles.calendarButtonPressed,
             ]}
           >
-            <Calendar size={20} color={GT.accent} strokeWidth={1.75} />
+            <Calendar
+              size={rs(16, 18, 19, 20)}
+              color={GT.accent}
+              strokeWidth={1.75}
+            />
           </Pressable>
         </Animated.View>
 
         {hero ? (
-          <Animated.View style={[styles.heroSection, heroAnimatedStyle]}>
+          <Animated.View
+            style={[
+              styles.heroSection,
+              { marginBottom: heroMarginBottom },
+              heroAnimatedStyle,
+            ]}
+          >
             <GymHeroCard hero={hero} onViewPlan={handleViewPlan} />
           </Animated.View>
         ) : null}
 
         <View style={styles.weekSection}>
-          <SPText style={styles.weekLabel}>THIS WEEK</SPText>
+          <SPText
+            style={[
+              styles.weekLabel,
+              {
+                fontSize: rs(10, 11, 11, 12),
+                marginBottom: rs(10, 11, 12, 12),
+              },
+            ]}
+          >
+            THIS WEEK
+          </SPText>
 
           {!activeInstancePlanId ? (
             <GymEmptyWeekState variant="noPlan" onPrimaryPress={loadSchedule} />
@@ -253,13 +308,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   scrollContent: {
-    paddingHorizontal: GT.s16,
+    // paddingHorizontal is applied responsively inline above
   },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: GT.s24,
   },
   headerTextCol: {
     flex: 1,
@@ -276,20 +330,15 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: GT.font.display,
-    fontSize: 34,
     color: GT.text,
     marginTop: GT.s4,
   },
   subtitle: {
     fontFamily: GT.font.medium,
-    fontSize: 15,
     color: GT.muted,
     marginTop: GT.s2,
   },
   calendarButton: {
-    width: 44,
-    height: 44,
-    borderRadius: GT.r999,
     borderWidth: 1,
     borderColor: GT.accentDim,
     alignItems: "center",
@@ -300,16 +349,14 @@ const styles = StyleSheet.create({
     backgroundColor: GT.accentDim,
   },
   heroSection: {
-    marginBottom: GT.s24,
+    // marginBottom is applied responsively inline above
   },
   weekSection: {
     gap: 0,
   },
   weekLabel: {
     fontFamily: GT.font.semiBold,
-    fontSize: 12,
     letterSpacing: 1.2,
     color: GT.muted,
-    marginBottom: GT.s12,
   },
 });

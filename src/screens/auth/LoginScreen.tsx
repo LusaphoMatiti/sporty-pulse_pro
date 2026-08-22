@@ -383,8 +383,14 @@ export function LoginScreen() {
 
       if (!token) {
         if (errorParam === "no_user") {
-          setErrorCode("ACCOUNT_NOT_FOUND");
-          setError("No account found for that Google account.");
+          // A short delay lets the in-app browser sheet fully finish
+          // dismissing before we present the native Modal — presenting it
+          // immediately after openAuthSessionAsync resolves can collide
+          // with that dismiss animation and get silently dropped.
+          setTimeout(() => {
+            setErrorCode("ACCOUNT_NOT_FOUND");
+            setError("No account found for that Google account.");
+          }, 400);
         } else {
           setError("Google sign-in failed.");
         }
