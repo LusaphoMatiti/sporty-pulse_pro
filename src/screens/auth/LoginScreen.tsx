@@ -9,6 +9,7 @@ import {
   Dimensions,
   ImageBackground,
   Image,
+  Modal,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -159,6 +160,59 @@ function ErrorBanner({
   );
 }
 
+// ─── No-account modal ─────────────────────────────────────────────────────────
+// Floating prompt shown whenever a login attempt (email/password OR Google)
+// comes back with ACCOUNT_NOT_FOUND — makes "you need to sign up" impossible
+// to miss, instead of relying on the inline banner alone.
+
+function NoAccountModal({
+  visible,
+  message,
+  onSignUp,
+  onDismiss,
+}: {
+  visible: boolean;
+  message: string;
+  onSignUp: () => void;
+  onDismiss: () => void;
+}) {
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onDismiss}
+    >
+      <Pressable style={styles.modalOverlay} onPress={onDismiss}>
+        {/* inner Pressable with no-op onPress swallows taps so they don't
+            bubble to the overlay and dismiss the modal */}
+        <Pressable style={styles.modalCard} onPress={() => {}}>
+          <View style={styles.modalIconBox}>
+            <SPIcon name="warning" size={20} color={T.accent} />
+          </View>
+          <SPText variant="h2" color={T.text} center>
+            No account found
+          </SPText>
+          <SPText
+            variant="bodyMd"
+            color={T.muted2}
+            center
+            style={styles.modalMessage}
+          >
+            {message}
+          </SPText>
+          <SPButton onPress={onSignUp}>Sign Up</SPButton>
+          <Pressable onPress={onDismiss} style={styles.modalDismissBtn}>
+            <SPText variant="caption" color={T.muted2}>
+              Try a different email
+            </SPText>
+          </Pressable>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
 // ─── Main LoginScreen ─────────────────────────────────────────────────────────
 
 export function LoginScreen() {
@@ -297,6 +351,7 @@ export function LoginScreen() {
   async function handleGoogle() {
     setGoogleLoading(true);
     setError("");
+    setErrorCode(null);
 
     try {
       const baseUrl = process.env.EXPO_PUBLIC_API_URL ?? "";
@@ -314,9 +369,15 @@ export function LoginScreen() {
       const parsed = new URL(result.url);
       const token = parsed.searchParams.get("token");
       const isNew = parsed.searchParams.get("isNew") === "true";
+      const errorParam = parsed.searchParams.get("error");
 
       if (!token) {
-        setError("Google sign-in failed.");
+        if (errorParam === "no_user") {
+          setErrorCode("ACCOUNT_NOT_FOUND");
+          setError("No account found for that Google account.");
+        } else {
+          setError("Google sign-in failed.");
+        }
         return;
       }
 
@@ -331,6 +392,22 @@ export function LoginScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: T.bg }}>
+      <NoAccountModal
+        visible={errorCode === "ACCOUNT_NOT_FOUND"}
+        message={
+          error ||
+          "We couldn't find an account for that email. Want to create one?"
+        }
+        onSignUp={() => {
+          setError("");
+          setErrorCode(null);
+          handleGoToRegister();
+        }}
+        onDismiss={() => {
+          setError("");
+          setErrorCode(null);
+        }}
+      />
       <KeyboardAvoidingView
         style={styles.root}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -397,18 +474,8 @@ export function LoginScreen() {
               Log In
             </SPText>
 
-            {!!error && (
-              <ErrorBanner
-                message={error}
-                actionLabel={
-                  errorCode === "ACCOUNT_NOT_FOUND" ? "Sign up" : undefined
-                }
-                onActionPress={
-                  errorCode === "ACCOUNT_NOT_FOUND"
-                    ? handleGoToRegister
-                    : undefined
-                }
-              />
+            {!!error && errorCode !== "ACCOUNT_NOT_FOUND" && (
+              <ErrorBanner message={error} />
             )}
 
             <View style={styles.fields}>
@@ -587,5 +654,40 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginTop: T.s8,
+  },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: T.s24,
+  },
+  modalCard: {
+    width: "100%",
+    maxWidth: 340,
+    backgroundColor: T.surface,
+    borderRadius: T.r16,
+    borderWidth: 1,
+    borderColor: T.border,
+    padding: T.s24,
+    alignItems: "center",
+    gap: T.s12,
+  },
+  modalIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: T.accentDim,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: T.s4,
+  },
+  modalMessage: {
+    marginBottom: T.s8,
+  },
+  modalDismissBtn: {
+    marginTop: T.s4,
+    padding: T.s8,
   },
 });
