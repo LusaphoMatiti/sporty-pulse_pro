@@ -110,7 +110,7 @@ export default function ProgramSessionsScreen() {
       >
         <View style={styles.headerRow}>
           <Pressable
-            onPress={() => router.back()}
+            onPress={() => router.replace("/(tabs)/training" as any)}
             hitSlop={12}
             style={[
               styles.backBtn,
