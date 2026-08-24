@@ -1,12 +1,13 @@
 // ─────────────────────────────────────────────────────────────────────────
 // View-all screen for the "Program Structure" section on TrainingScreen.
-// Shows every session in the user's active program (Program Structure on
-// Training only shows the first 4). This is the user's own active plan --
-// there's no Pro/lock gating here, since they've already started it.
+// Program Structure shows the workouts (exercises) inside the user's
+// current session — each with its own short demo clip. It only shows the
+// first 4; this screen shows all of them, unsliced, using the exact same
+// card design (thumbnail, "SESSION N" label, exercise name, clip length).
 //
-// Reuses /api/training (the same endpoint TrainingScreen calls) rather
-// than adding a new route, since it already returns `allSessions` for the
-// active instance -- see route.ts's `allSessions` field.
+// Reuses /api/training (same endpoint TrainingScreen calls) rather than
+// adding a new route — exercisesForView already contains every workout in
+// the current session.
 // ─────────────────────────────────────────────────────────────────────────
 
 import React, { useCallback, useEffect, useState } from "react";
@@ -22,16 +23,15 @@ import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { FadeIn } from "react-native-reanimated";
-import { ChevronLeft, Clock, Check, PlayCircle } from "lucide-react-native";
+import { ChevronLeft, ChevronRight, Clock } from "lucide-react-native";
 
 import { SPText } from "../components/ui/SPText";
-import { spacing, radii, fonts, layout } from "../theme";
+import { spacing, fonts, layout } from "../theme";
 import { useAppTheme } from "../theme/ThemeContext";
+import { useTabBarHeight } from "../hooks/Usetabbarheight";
 import { api } from "../lib/api";
 
-// ─── Responsive scale — matches TrainingScreen's own local rs()/rf() so
-// this screen feels identical in scale, since it's a direct extension of
-// the Program Structure section there. ──────────────────────────────────
+// ─── Responsive scale — matches TrainingScreen's own local rs()/rf(). ────
 
 const { width: SCREEN_W } = Dimensions.get("window");
 
@@ -48,27 +48,34 @@ function rf(size: number): number {
   return Math.round(size * SCALE * 2) / 2;
 }
 
-// ─── Types ──────────────────────────────────────────────────────────────
+// ─── Types — mirrors ExerciseForView from TrainingScreen ─────────────────
 
-interface SessionSummary {
-  sessionNumber: number;
-  focus: string;
-  estimatedMinutes: number;
-  thumbnailUrl: string | null;
+interface ExerciseForView {
+  id: string;
+  order: number;
+  sets: number;
+  reps: number;
+  restSeconds: number;
+  exercise: {
+    id: string;
+    name: string;
+    musclesWorked: string[];
+    equipment: { id: string; name: string }[];
+    thumbnailUrl: string | null;
+  };
 }
 
 interface TrainingSummary {
   instanceId: string | null;
   planName?: string;
-  currentSession?: number;
-  totalSessions?: number;
-  allSessions?: SessionSummary[];
+  exercisesForView?: ExerciseForView[];
 }
 
 export default function ProgramSessionsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { theme } = useAppTheme();
+  const tabBarHeight = useTabBarHeight();
 
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<TrainingSummary | null>(null);
@@ -91,20 +98,7 @@ export default function ProgramSessionsScreen() {
     load();
   }, [load]);
 
-  function handleSessionPress(session: SessionSummary) {
-    if (!data || session.sessionNumber !== data.currentSession) return;
-    // Only the CURRENT session is actionable. Route back through the
-    // Training tab and let its existing handleStartNow() flow run (weight
-    // sheet, correct instanceId, etc.) — same pattern GymProgramsScreen
-    // already uses for "Start Session", rather than deep-linking into a
-    // session route directly from here.
-    router.push({
-      pathname: "/(tabs)/training",
-      params: { autoStart: "1" },
-    });
-  }
-
-  const sessions = data?.allSessions ?? [];
+  const exercises = data?.exercisesForView ?? [];
 
   return (
     <View style={[styles.fill, { backgroundColor: theme.bg }]}>
@@ -139,7 +133,7 @@ export default function ProgramSessionsScreen() {
             <SPText
               style={{ color: theme.muted, fontSize: rf(12), marginTop: rs(2) }}
             >
-              {data?.totalSessions ?? sessions.length} sessions total
+              {exercises.length} workouts
             </SPText>
           </View>
         </View>
@@ -149,7 +143,7 @@ export default function ProgramSessionsScreen() {
         <View style={[styles.fill, styles.centered]}>
           <ActivityIndicator color={theme.accent} />
         </View>
-      ) : !data?.instanceId || sessions.length === 0 ? (
+      ) : !data?.instanceId || exercises.length === 0 ? (
         <View style={[styles.fill, styles.centered]}>
           <SPText style={{ color: theme.muted, fontSize: rf(14) }}>
             No active program found.
@@ -161,140 +155,81 @@ export default function ProgramSessionsScreen() {
           contentContainerStyle={{
             paddingHorizontal: rs(layout.screenPaddingH),
             paddingTop: rs(spacing[5]),
-            paddingBottom: insets.bottom + rs(spacing[8]),
+            paddingBottom: tabBarHeight + rs(spacing[8]),
             gap: rs(spacing[3]),
           }}
         >
-          {sessions.map((session, i) => {
-            const isCurrent = session.sessionNumber === data.currentSession;
-            const isCompleted =
-              data.currentSession != null &&
-              session.sessionNumber < data.currentSession;
-
-            return (
-              <Animated.View
-                key={session.sessionNumber}
-                entering={FadeIn.duration(240).delay(i * 30)}
+          {exercises.map((e, i) => (
+            <Animated.View
+              key={e.id}
+              entering={FadeIn.duration(240).delay(i * 25)}
+            >
+              <Pressable
+                style={({ pressed }) => [
+                  styles.sessionCard,
+                  {
+                    backgroundColor: theme.surface,
+                    borderColor: theme.border,
+                    opacity: pressed ? 0.85 : 1,
+                  },
+                ]}
               >
-                <Pressable
-                  onPress={() => handleSessionPress(session)}
-                  disabled={!isCurrent}
-                  style={({ pressed }) => [
-                    styles.sessionCard,
-                    {
-                      backgroundColor: theme.surface,
-                      borderColor: isCurrent ? theme.accent : theme.border,
-                      opacity:
-                        pressed && isCurrent ? 0.85 : isCompleted ? 0.7 : 1,
-                    },
+                <View
+                  style={[
+                    styles.sessionThumb,
+                    { backgroundColor: theme.raised, overflow: "hidden" },
                   ]}
                 >
-                  <View
-                    style={[
-                      styles.sessionThumb,
-                      { backgroundColor: theme.raised, overflow: "hidden" },
-                    ]}
-                  >
-                    {session.thumbnailUrl ? (
-                      <Image
-                        source={{ uri: session.thumbnailUrl }}
-                        style={{ width: "100%", height: "100%" }}
-                        contentFit="cover"
-                        transition={200}
-                      />
-                    ) : null}
-                    {isCompleted && (
-                      <View
-                        style={[
-                          styles.completedBadge,
-                          { backgroundColor: theme.accent },
-                        ]}
-                      >
-                        <Check size={rs(12)} color={theme.bg} strokeWidth={3} />
-                      </View>
-                    )}
-                  </View>
-
-                  <View style={styles.sessionBody}>
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: rs(6),
-                      }}
-                    >
-                      <SPText
-                        style={{
-                          color: theme.muted,
-                          fontSize: rf(11),
-                          fontFamily: fonts.brandSemiBold,
-                          letterSpacing: 0.6,
-                        }}
-                      >
-                        SESSION {session.sessionNumber}
-                      </SPText>
-                      {isCurrent && (
-                        <View
-                          style={[
-                            styles.upNextPill,
-                            { backgroundColor: theme.accentDim },
-                          ]}
-                        >
-                          <SPText
-                            style={{
-                              color: theme.accent,
-                              fontSize: rf(10),
-                              fontFamily: fonts.brandBold,
-                              letterSpacing: 0.4,
-                            }}
-                          >
-                            UP NEXT
-                          </SPText>
-                        </View>
-                      )}
-                    </View>
-                    <SPText
-                      numberOfLines={1}
-                      style={{
-                        color: theme.text,
-                        fontSize: rf(16),
-                        fontFamily: fonts.brandBold,
-                        lineHeight: rf(21),
-                        marginTop: rs(2),
-                      }}
-                    >
-                      {session.focus}
-                    </SPText>
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: rs(6),
-                        marginTop: rs(6),
-                      }}
-                    >
-                      <Clock
-                        size={rs(12)}
-                        color={theme.muted}
-                        strokeWidth={2}
-                      />
-                      <SPText style={{ color: theme.muted, fontSize: rf(12) }}>
-                        {session.estimatedMinutes} min
-                      </SPText>
-                    </View>
-                  </View>
-
-                  {isCurrent && (
-                    <PlayCircle
-                      size={rs(22)}
-                      color={theme.accent}
-                      strokeWidth={1.75}
+                  {e.exercise.thumbnailUrl ? (
+                    <Image
+                      source={{ uri: e.exercise.thumbnailUrl }}
+                      style={{ width: "100%", height: "100%" }}
+                      contentFit="cover"
+                      transition={200}
                     />
-                  )}
-                </Pressable>
-              </Animated.View>
-            );
-          })}
+                  ) : null}
+                </View>
+
+                <View style={styles.sessionBody}>
+                  <SPText
+                    style={{
+                      color: theme.muted,
+                      fontSize: rf(11),
+                      fontFamily: fonts.brandSemiBold,
+                      letterSpacing: 0.6,
+                      marginBottom: rs(4),
+                    }}
+                    numberOfLines={1}
+                  >
+                    SESSION {i + 1}
+                  </SPText>
+                  <SPText
+                    style={{
+                      color: theme.text,
+                      fontSize: rf(16),
+                      fontFamily: fonts.brandBold,
+                      lineHeight: rf(21),
+                    }}
+                    numberOfLines={1}
+                  >
+                    {e.exercise.name}
+                  </SPText>
+                  <View style={styles.sessionMetaRow}>
+                    <Clock size={rs(12)} color={theme.muted} strokeWidth={2} />
+                    <SPText style={{ color: theme.muted, fontSize: rf(12) }}>
+                      2 min
+                    </SPText>
+                  </View>
+                </View>
+
+                <ChevronRight
+                  size={rs(18)}
+                  color={theme.muted}
+                  strokeWidth={1.75}
+                />
+              </Pressable>
+            </Animated.View>
+          ))}
         </ScrollView>
       )}
     </View>
@@ -332,22 +267,12 @@ const styles = StyleSheet.create({
     height: rs(64),
     borderRadius: rs(14),
     flexShrink: 0,
-    position: "relative",
-  },
-  completedBadge: {
-    position: "absolute",
-    top: rs(4),
-    right: rs(4),
-    width: rs(18),
-    height: rs(18),
-    borderRadius: rs(9),
-    alignItems: "center",
-    justifyContent: "center",
   },
   sessionBody: { flex: 1, minWidth: 0 },
-  upNextPill: {
-    borderRadius: rs(radii.full),
-    paddingHorizontal: rs(6),
-    paddingVertical: rs(2),
+  sessionMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: rs(6),
+    marginTop: rs(6),
   },
 });

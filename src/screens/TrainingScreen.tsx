@@ -15,6 +15,14 @@ import {
 import { Image } from "expo-image";
 import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+  FadeIn,
+  FadeInDown,
+} from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { CACHE_KEYS } from "../lib/cacheKeys";
@@ -27,6 +35,7 @@ import {
   CalendarDays,
   Flame,
   Clock,
+  BarChart3,
   Dumbbell,
   Lock,
 } from "lucide-react-native";
@@ -120,13 +129,6 @@ interface ProgramStub {
   sessionDurationMin: string | null;
 }
 
-interface SessionSummary {
-  sessionNumber: number;
-  focus: string;
-  estimatedMinutes: number;
-  thumbnailUrl: string | null;
-}
-
 interface TrainingData {
   instanceId: string;
   planId: string;
@@ -143,7 +145,6 @@ interface TrainingData {
   boughtFromStore: boolean;
   draft: SessionDraft | null;
   allPrograms: ProgramStub[];
-  allSessions: SessionSummary[];
   activeEquipmentIds: string[];
   imageUrl: string | null;
   sessionDurationMin: string | null;
@@ -544,7 +545,9 @@ function ProgramsTab({
               Program Structure
             </SPText>
             <Pressable
-              onPress={() => router.push("/(tabs)/training/sessions" as any)}
+              onPress={() =>
+                router.push("/(tabs)/training/program-sessions" as any)
+              }
               style={programStyles.seeAllBtn}
               hitSlop={8}
             >
@@ -566,87 +569,79 @@ function ProgramsTab({
           </View>
 
           <View style={{ gap: rs(spacing[3]) }}>
-            {data.allSessions.slice(0, 4).map((session) => {
-              const isCurrent = session.sessionNumber === data.currentSession;
-              return (
-                <Pressable
-                  key={session.sessionNumber}
-                  style={({ pressed }) => [
-                    programStyles.sessionCard,
-                    {
-                      backgroundColor: theme.surface,
-                      borderColor: theme.border,
-                      opacity: pressed ? 0.85 : 1,
-                    },
+            {data.exercisesForView.slice(0, 4).map((e, i) => (
+              <Pressable
+                key={e.id}
+                style={({ pressed }) => [
+                  programStyles.sessionCard,
+                  {
+                    backgroundColor: theme.surface,
+                    borderColor: theme.border,
+                    opacity: pressed ? 0.85 : 1,
+                  },
+                ]}
+              >
+                <View
+                  style={[
+                    programStyles.sessionThumb,
+                    { backgroundColor: theme.raised, overflow: "hidden" },
                   ]}
                 >
-                  <View
-                    style={[
-                      programStyles.sessionThumb,
-                      { backgroundColor: theme.raised, overflow: "hidden" },
-                    ]}
+                  {e.exercise.thumbnailUrl ? (
+                    <Image
+                      source={{ uri: e.exercise.thumbnailUrl }}
+                      style={{ width: "100%", height: "100%" }}
+                      contentFit="cover"
+                      transition={200}
+                    />
+                  ) : null}
+                </View>
+
+                <View style={programStyles.sessionBody}>
+                  <SPText
+                    style={{
+                      color: theme.muted,
+                      fontSize: rf(11),
+                      fontFamily: fonts.brandSemiBold,
+                      letterSpacing: 0.6,
+                      marginBottom: rs(4),
+                    }}
+                    numberOfLines={1}
                   >
-                    {session.thumbnailUrl ? (
-                      <Image
-                        source={{ uri: session.thumbnailUrl }}
-                        style={{ width: "100%", height: "100%" }}
-                        contentFit="cover"
-                        transition={200}
-                      />
-                    ) : null}
-                  </View>
-
-                  <View style={programStyles.sessionBody}>
-                    <SPText
-                      style={{
-                        color: theme.muted,
-                        fontSize: rf(11),
-                        fontFamily: fonts.brandSemiBold,
-                        letterSpacing: 0.6,
-                        marginBottom: rs(4),
-                      }}
-                      numberOfLines={1}
-                    >
-                      SESSION {session.sessionNumber}
-                      {isCurrent ? " · UP NEXT" : ""}
+                    SESSION {i + 1}
+                  </SPText>
+                  <SPText
+                    style={{
+                      color: theme.text,
+                      fontSize: rf(16),
+                      fontFamily: fonts.brandBold,
+                      lineHeight: rf(21),
+                    }}
+                    numberOfLines={1}
+                  >
+                    {e.exercise.name}
+                  </SPText>
+                  <View style={programStyles.sessionMetaRow}>
+                    <Clock size={rs(12)} color={theme.muted} strokeWidth={2} />
+                    <SPText style={{ color: theme.muted, fontSize: rf(12) }}>
+                      2 min
                     </SPText>
-                    <SPText
-                      style={{
-                        color: theme.text,
-                        fontSize: rf(16),
-                        fontFamily: fonts.brandBold,
-                        lineHeight: rf(21),
-                      }}
-                      numberOfLines={1}
-                    >
-                      {session.focus}
-                    </SPText>
-                    <View style={programStyles.sessionMetaRow}>
-                      <Clock
-                        size={rs(12)}
-                        color={theme.muted}
-                        strokeWidth={2}
-                      />
-                      <SPText style={{ color: theme.muted, fontSize: rf(12) }}>
-                        {session.estimatedMinutes} min
-                      </SPText>
-                      <View
-                        style={[
-                          programStyles.sessionMetaDot,
-                          { backgroundColor: theme.border },
-                        ]}
-                      />
-                    </View>
+                    <View
+                      style={[
+                        programStyles.sessionMetaDot,
+                        { backgroundColor: theme.border },
+                      ]}
+                    />
                   </View>
+                </View>
 
-                  <ChevronRight
-                    size={rs(18)}
-                    color={theme.muted}
-                    strokeWidth={1.75}
-                  />
-                </Pressable>
-              );
-            })}
+                <ChevronRight
+                  size={rs(18)}
+                  color={theme.muted}
+                  strokeWidth={1.75}
+                />
+              </Pressable>
+            ))}
           </View>
         </View>
 

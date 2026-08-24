@@ -38,6 +38,7 @@ import { SPButton } from "../components/ui/SPButton";
 import UpgradePrompt from "../components/ui/Upgradeprompts";
 import { spacing, radii, borders, fonts, layout } from "../theme";
 import { useAppTheme } from "../theme/ThemeContext";
+import { useTabBarHeight } from "../hooks/Usetabbarheight";
 import { api } from "../lib/api";
 import { CACHE_KEYS } from "../lib/cacheKeys";
 import type { TrainingTier } from "../types/session";
@@ -122,6 +123,7 @@ export default function OtherProgramsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { theme } = useAppTheme();
+  const tabBarHeight = useTabBarHeight();
 
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<TrainingSummary | null>(null);
@@ -244,7 +246,7 @@ export default function OtherProgramsScreen() {
           contentContainerStyle={{
             paddingHorizontal: rs(layout.screenPaddingH),
             paddingTop: rs(spacing[4]),
-            paddingBottom: insets.bottom + rs(spacing[8]),
+            paddingBottom: tabBarHeight + rs(spacing[8]),
             gap: rs(spacing[3]),
           }}
         >
