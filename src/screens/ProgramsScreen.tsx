@@ -39,6 +39,7 @@ import {
   Timer,
   AlertTriangle,
 } from "lucide-react-native";
+import { rf } from "../lib/responsive";
 
 import { SPText } from "../components/ui/SPText";
 import { SPButton } from "../components/ui/SPButton";
@@ -49,6 +50,7 @@ import { useTabBarHeight } from "../hooks/Usetabbarheight";
 import { api } from "../lib/api";
 import { CACHE_KEYS } from "../lib/cacheKeys";
 import GymProgramsScreen from "./GymprogramsScreen";
+import { spacing, radii, borders, fonts } from "../theme";
 
 // ─── Design Tokens ────────────────────────────────────────────────────────────
 
@@ -452,10 +454,17 @@ function ScreenHeader({ insetTop, theme }: { insetTop: number; theme: any }) {
     <View style={{ paddingTop: insetTop + T.s20, marginBottom: T.s8 }}>
       <View style={hdr.row}>
         <View style={{ flex: 1 }}>
-          <SPText style={[hdr.eyebrow, { color: theme.muted }]}>
-            Sporty Pulse Pro
+          <SPText
+            style={{
+              color: theme.text,
+              fontSize: rf(30),
+              fontFamily: fonts.brandBold,
+              lineHeight: rf(36),
+              letterSpacing: -0.3,
+            }}
+          >
+            Programs
           </SPText>
-          <SPText style={[hdr.title, { color: theme.text }]}>Programs</SPText>
           <SPText style={[hdr.subtitle, { color: theme.muted2 }]}>
             Structured training for people who don't have time to waste.
           </SPText>

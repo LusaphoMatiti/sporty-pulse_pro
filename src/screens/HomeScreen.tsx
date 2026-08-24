@@ -65,6 +65,7 @@ import { SPIcon } from "../components/icons/SPIcon";
 import { StreakDotGrid } from "../components/home/Streakdotgrid";
 import { SessionProgressRing } from "../components/home/Sessionprogressring";
 import { Day1Home } from "../components/home/Day1home";
+import PrivacyPolicyModal from "../components/ui/PrivacyPolicyModal";
 
 import { spacing, radii, borders, timing, spring } from "../theme";
 import { useAppTheme } from "../theme/ThemeContext";
@@ -1298,6 +1299,7 @@ export function HomeScreen() {
           ctaCopy={day1Copy.cta}
           subline={day1Copy.sub}
         />
+        <PrivacyPolicyModal userId={user.id} />
       </View>
     );
   }
@@ -1340,6 +1342,7 @@ export function HomeScreen() {
 
   return (
     <View style={[styles.fill, { backgroundColor: theme.bg }]}>
+      <PrivacyPolicyModal userId={user.id} />
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={scrollContentStyle}

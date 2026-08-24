@@ -1,11 +1,31 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useState } from "react";
 import { View, Modal, ScrollView, StyleSheet } from "react-native";
+import { useFocusEffect } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SPText } from "./SPText";
 import { SPButton } from "./SPButton";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { spacing, radii, borders, fonts } from "../../theme";
 import { useAppTheme } from "../../theme/ThemeContext";
 import { getSessionToken } from "../../lib/api";
+
+// Local fast-path cache. The backend flag (checked via
+// /api/user/privacy-policy-status) is still the source of truth, but once
+// we know acceptance happened we never want to hit the network -- or show
+// a flash of the modal -- again on this device, for this user.
+//
+// Scoped per user id -- NOT a single device-wide flag. Multiple accounts
+// can be used on the same device (test accounts, account switching), and
+// one user's acceptance must never suppress the modal for a different
+// user who hasn't accepted anything yet.
+const cacheKeyFor = (userId: string) => `sp_privacy_policy_accepted:${userId}`;
+
+// Guards against re-checking more than once per app session, per user,
+// once we've gotten a conclusive answer for that user. Before that,
+// useFocusEffect below will keep retrying every time Home regains focus --
+// this is what recovers from the token not being ready yet on the very
+// first check right after onboarding.
+const checkedUserIds = new Set<string>();
 
 const SUMMARY_POINTS = [
   "We collect your account, training, and equipment data to run your programs.",
@@ -28,7 +48,7 @@ Under POPIA, you can request access to, correction of, or deletion of your perso
 We do not sell your personal information to anyone.
 `.trim();
 
-export default function PrivacyPolicyModal() {
+export default function PrivacyPolicyModal({ userId }: { userId: string }) {
   const insets = useSafeAreaInsets();
   const { theme } = useAppTheme();
 
@@ -36,31 +56,60 @@ export default function PrivacyPolicyModal() {
   const [showFullPolicy, setShowFullPolicy] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    const checkStatus = async () => {
-      try {
-        const token = await getSessionToken();
-        if (!token) return;
+  useFocusEffect(
+    useCallback(() => {
+      // Already got a conclusive answer for this user, this session --
+      // don't check again.
+      if (checkedUserIds.has(userId)) return;
 
-        const res = await fetch(
-          `${process.env.EXPO_PUBLIC_API_URL}/api/user/privacy-policy-status`,
-          { headers: { Authorization: `Bearer ${token}` } },
-        );
-        const data = await res.json();
+      const checkStatus = async () => {
+        try {
+          // Fast path: if we've already recorded acceptance for this
+          // user on this device, skip the network call entirely and
+          // never show the sheet.
+          const cached = await AsyncStorage.getItem(cacheKeyFor(userId));
+          if (cached === "true") {
+            checkedUserIds.add(userId);
+            return;
+          }
 
-        if (data?.needsAcceptance) {
-          setVisible(true);
+          const token = await getSessionToken();
+          if (!token) {
+            // Session not ready yet -- e.g. right after onboarding,
+            // before the token has finished persisting. Don't lock --
+            // this will retry the next time Home regains focus.
+            return;
+          }
+
+          const res = await fetch(
+            `${process.env.EXPO_PUBLIC_API_URL}/api/user/privacy-policy-status`,
+            { headers: { Authorization: `Bearer ${token}` } },
+          );
+          const data = await res.json();
+
+          // We got a real answer from the backend -- this is conclusive,
+          // lock it in for this user for the session either way.
+          checkedUserIds.add(userId);
+
+          if (data?.needsAcceptance) {
+            setVisible(true);
+          } else {
+            // Backend already has this accepted (e.g. accepted
+            // previously, or on another device) -- cache locally so we
+            // never ask this user again.
+            await AsyncStorage.setItem(cacheKeyFor(userId), "true");
+          }
+        } catch (err) {
+          // Fail silently -- not worth blocking app usage over a network
+          // hiccup. Deliberately NOT locking this user in here, so the
+          // next focus gets another shot.
+          console.error("Privacy policy status check failed:", err);
         }
-      } catch (err) {
-        // Fail silently -- not worth blocking app usage over a network
-        // hiccup on this specific check. It'll be checked again next
-        // time the app opens.
-        console.error("Privacy policy status check failed:", err);
-      }
-    };
+      };
 
-    checkStatus();
-  }, []);
+      checkStatus();
+    }, [userId]),
+  );
 
   const handleAccept = async () => {
     setSubmitting(true);
@@ -73,6 +122,7 @@ export default function PrivacyPolicyModal() {
           headers: { Authorization: `Bearer ${token}` },
         },
       );
+      await AsyncStorage.setItem(cacheKeyFor(userId), "true");
       setVisible(false);
     } catch (err) {
       console.error("Failed to record privacy policy acceptance:", err);
