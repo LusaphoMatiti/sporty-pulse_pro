@@ -1220,7 +1220,7 @@ function ProgramCard({
               <Image
                 source={{ uri: plan.imageUrl }}
                 style={pc.image}
-                resizeMode="cover"
+                resizeMode="contain"
               />
             ) : (
               <View
@@ -1350,7 +1350,7 @@ function LockedProgramCard({
               <Image
                 source={{ uri: plan.imageUrl }}
                 style={pc.image}
-                resizeMode="cover"
+                resizeMode="contain"
               />
             ) : (
               <View
@@ -1447,7 +1447,7 @@ const pc = StyleSheet.create({
     position: "relative",
     backgroundColor: "#0A0A0A",
   },
-  image: { width: "100%", height: "100%", resizeMode: "cover" },
+  image: { width: "100%", height: "100%", resizeMode: "contain" },
   imagePlaceholder: { width: "100%", height: "100%" },
   content: {
     flex: 1,

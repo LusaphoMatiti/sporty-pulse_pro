@@ -930,9 +930,23 @@ export function SettingsScreen() {
     }
     try {
       if (isRefresh) setRefreshing(true);
-      const d = await api.get<SettingsData>("/api/settings");
-      setData(d);
-      await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(d));
+      const res = await api.get<
+        SettingsData | { success: boolean; data: SettingsData }
+      >("/api/settings");
+      // /api/settings has been seen returning both a bare SettingsData
+      // object and a {success, data} wrapper (like /api/notifications/
+      // preferences below) -- accept either shape so a shape mismatch
+      // can't leave `data.user` undefined and crash the render below.
+      const settings: SettingsData | null =
+        res && "data" in res && res.data
+          ? res.data
+          : ((res as SettingsData) ?? null);
+      if (settings?.user) {
+        setData(settings);
+        await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(settings));
+      } else {
+        console.error("[SettingsScreen] unexpected /api/settings shape:", res);
+      }
     } catch (e) {
       console.error("[SettingsScreen] fetch failed:", e);
     } finally {
@@ -1048,7 +1062,7 @@ export function SettingsScreen() {
     );
   }
 
-  if (loading || !data) {
+  if (loading || !data?.user) {
     return (
       <View style={[mainStyles.fill, { backgroundColor: theme.bg }]}>
         <SettingsSkeleton />

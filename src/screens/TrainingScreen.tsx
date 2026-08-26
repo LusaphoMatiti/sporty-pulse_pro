@@ -591,7 +591,7 @@ function ProgramsTab({
                     <Image
                       source={{ uri: e.exercise.thumbnailUrl }}
                       style={{ width: "100%", height: "100%" }}
-                      contentFit="cover"
+                      contentFit="contain"
                       transition={200}
                     />
                   ) : null}
@@ -1047,7 +1047,7 @@ function LibraryTab({ data }: { data: TrainingData }) {
                   <Image
                     source={{ uri: e.exercise.thumbnailUrl }}
                     style={{ width: "100%", height: "100%" }}
-                    contentFit="cover"
+                    contentFit="contain"
                     transition={200}
                   />
                 ) : null}

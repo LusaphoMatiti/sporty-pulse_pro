@@ -1,12 +1,6 @@
-// ─────────────────────────────────────────────
-// New screen — only rendered when the user's onboarding trainingLocation
-// is GYM. Does not replace or modify the existing ProgramsScreen, which
-// still serves HOME users (and GYM users before an active plan exists).
-// ─────────────────────────────────────────────
-
 import React, { useCallback, useEffect, useState } from "react";
 import { View, ScrollView, StyleSheet, ActivityIndicator } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
   useSharedValue,
@@ -124,9 +118,16 @@ export default function GymProgramsScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    loadSchedule();
-  }, [loadSchedule]);
+  // Refetch on every focus (not just mount) so changes made elsewhere --
+  // e.g. equipment or workout changes saved in Training System settings --
+  // are reflected here as soon as the user returns to this tab. Matches
+  // the pattern already used by HomeScreen, ProgramsScreen, and
+  // TrainingScreen.
+  useFocusEffect(
+    useCallback(() => {
+      loadSchedule();
+    }, [loadSchedule]),
+  );
 
   useEffect(() => {
     if (!loading) {

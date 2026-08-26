@@ -49,7 +49,11 @@ export default function TabLayout() {
     } catch {
       // fall through
     }
-    // No active plan in cache → go to Programs tab
+    // No active plan in cache → go to Programs tab (which forks to
+    // GymProgramsScreen for GYM users). This cache is deliberately cleared
+    // by training-system.tsx on save, so right after a Home/Gym switch this
+    // always falls through here rather than trusting a stale instanceId
+    // left over from the previous location.
     router.navigate("/(tabs)/programs" as any);
   };
 

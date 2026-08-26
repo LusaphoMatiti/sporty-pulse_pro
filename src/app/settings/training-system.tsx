@@ -3,6 +3,8 @@ import { View, ScrollView, Pressable } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChevronLeft } from "lucide-react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { CACHE_KEYS } from "../../lib/cacheKeys";
 import { SPText } from "../../components/ui/SPText";
 import { SPButton } from "../../components/ui/SPButton";
 import { getEquipmentIcon } from "../../components/icons/Empticons";
@@ -20,6 +22,12 @@ const GOAL_LABEL: Record<string, string> = {
   GET_FIT: "Get Fit",
 };
 const LOCATION_LABEL: Record<string, string> = { HOME: "Home", GYM: "Gym" };
+const GYM_STYLE_LABEL: Record<string, string> = {
+  BODYWEIGHT: "Free weight",
+  CALISTHENICS: "Calisthenic",
+  WEIGHTS_AND_MACHINES: "Weights & Machine",
+  WEIGHTS_ONLY: "Weights only",
+};
 const SEX_LABEL: Record<string, string> = {
   MALE: "Male",
   FEMALE: "Female",
@@ -36,6 +44,7 @@ type EquipmentItem = { id: string; name: string };
 type TrainingSystemData = {
   primaryGoal: string;
   trainingLocation: string;
+  gymTrainingStyle: string | null;
   biologicalSex: string;
   experienceLevel: string;
   equipmentId: string | null;
@@ -128,6 +137,7 @@ export default function TrainingSystemScreen() {
   const [data, setData] = useState<TrainingSystemData>({
     primaryGoal: "",
     trainingLocation: "",
+    gymTrainingStyle: null,
     biologicalSex: "",
     experienceLevel: "",
     equipmentId: null,
@@ -138,11 +148,13 @@ export default function TrainingSystemScreen() {
     setError(null);
     try {
       const [current, equipment] = await Promise.all([
-        api.get<TrainingSystemData>("/api/settings/training-system"),
+        api.get<{ success: boolean; data: TrainingSystemData }>(
+          "/api/settings/training-system",
+        ),
         getEquipment(),
       ]);
-      if (current) {
-        setData(current);
+      if (current?.data) {
+        setData(current.data);
       } else {
         setError("Could not load your training system. Please try again.");
       }
@@ -164,7 +176,18 @@ export default function TrainingSystemScreen() {
     setError(null);
     try {
       await api.post("/api/settings/training-system", data);
-      router.back();
+      // Clear the cached active-plan pointer so the tab bar's
+      // handleTrainingPress shortcut doesn't route to TrainingScreen using
+      // a stale instanceId left over from before this Home/Gym switch --
+      // it'll correctly fall through to Programs/Gym Programs until a
+      // fresh plan gets loaded and re-cached from there.
+      await AsyncStorage.removeItem(CACHE_KEYS.training);
+      // Land on the Programs tab rather than router.back() -- ProgramsScreen
+      // already forks to <GymProgramsScreen /> when trainingLocation is
+      // GYM, so this alone routes Home -> Programs and Gym -> Gym Programs
+      // without duplicating that branch here. replace() (not back/push) so
+      // this doesn't leave the settings form on the stack behind it.
+      router.replace("/(tabs)/programs" as any);
     } catch (err) {
       console.error(err);
       setError("Could not save your changes. Please try again.");
@@ -233,11 +256,31 @@ export default function TrainingSystemScreen() {
           options={LOCATION_LABEL}
           selected={data.trainingLocation}
           onSelect={(value) =>
-            setData((d) => ({ ...d, trainingLocation: value }))
+            setData((d) => ({
+              ...d,
+              trainingLocation: value,
+              // Gym is already fully equipped -- clear any previously
+              // selected home equipment so it doesn't linger unused (or
+              // get resaved) once the user switches to GYM.
+              equipmentId: value === "GYM" ? null : d.equipmentId,
+            }))
           }
           rs={rs}
         />
       </FieldSection>
+
+      {data.trainingLocation === "GYM" && (
+        <FieldSection title="Gym training style" rs={rs}>
+          <OptionRow
+            options={GYM_STYLE_LABEL}
+            selected={data.gymTrainingStyle ?? ""}
+            onSelect={(value) =>
+              setData((d) => ({ ...d, gymTrainingStyle: value }))
+            }
+            rs={rs}
+          />
+        </FieldSection>
+      )}
 
       <FieldSection title="Biological sex" rs={rs}>
         <OptionRow
@@ -259,48 +302,52 @@ export default function TrainingSystemScreen() {
         />
       </FieldSection>
 
-      <FieldSection title="Equipment" rs={rs}>
-        <View style={{ gap: spacing[2] }}>
-          {equipmentList.map((item) => {
-            const isSelected = item.id === data.equipmentId;
-            const EquipmentIcon = getEquipmentIcon(item.name, undefined);
-            return (
-              <Pressable
-                key={item.id}
-                onPress={() => setData((d) => ({ ...d, equipmentId: item.id }))}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: spacing[3],
-                  padding: rsp(spacing[3]),
-                  borderRadius: radii.lg,
-                  borderWidth: borders.thin,
-                  borderColor: isSelected ? theme.accent : theme.border,
-                  backgroundColor: isSelected
-                    ? theme.accent + "26"
-                    : theme.surface,
-                }}
-              >
-                {EquipmentIcon && (
-                  <EquipmentIcon
-                    size={rs(18, 20, 20, 22)}
-                    color={isSelected ? theme.accent : theme.text}
-                    strokeWidth={2}
-                  />
-                )}
-                <SPText
+      {data.trainingLocation !== "GYM" && (
+        <FieldSection title="Equipment" rs={rs}>
+          <View style={{ gap: spacing[2] }}>
+            {equipmentList.map((item) => {
+              const isSelected = item.id === data.equipmentId;
+              const EquipmentIcon = getEquipmentIcon(item.name, undefined);
+              return (
+                <Pressable
+                  key={item.id}
+                  onPress={() =>
+                    setData((d) => ({ ...d, equipmentId: item.id }))
+                  }
                   style={{
-                    color: isSelected ? theme.accent : theme.text,
-                    fontSize: rs(12, 13, 13, 14),
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: spacing[3],
+                    padding: rsp(spacing[3]),
+                    borderRadius: radii.lg,
+                    borderWidth: borders.thin,
+                    borderColor: isSelected ? theme.accent : theme.border,
+                    backgroundColor: isSelected
+                      ? theme.accent + "26"
+                      : theme.surface,
                   }}
                 >
-                  {item.name}
-                </SPText>
-              </Pressable>
-            );
-          })}
-        </View>
-      </FieldSection>
+                  {EquipmentIcon && (
+                    <EquipmentIcon
+                      size={rs(18, 20, 20, 22)}
+                      color={isSelected ? theme.accent : theme.text}
+                      strokeWidth={2}
+                    />
+                  )}
+                  <SPText
+                    style={{
+                      color: isSelected ? theme.accent : theme.text,
+                      fontSize: rs(12, 13, 13, 14),
+                    }}
+                  >
+                    {item.name}
+                  </SPText>
+                </Pressable>
+              );
+            })}
+          </View>
+        </FieldSection>
+      )}
 
       {error && (
         <SPText

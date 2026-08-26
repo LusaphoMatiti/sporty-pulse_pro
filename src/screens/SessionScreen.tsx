@@ -725,7 +725,7 @@ function VideoPlayerCard({
   onHideVideo?: () => void;
   rs: (...args: number[]) => number;
 }) {
-  const { theme } = useAppTheme();
+  const { theme, isDark } = useAppTheme();
   const [playing, setPlaying] = useState(false);
 
   // ── Video's own playback clock — independent of the workout timer ─────────
@@ -798,7 +798,7 @@ function VideoPlayerCard({
   return (
     <Animated.View
       entering={FadeInDown.duration(260).delay(60)}
-      style={s.videoCard}
+      style={[s.videoCard, { backgroundColor: isDark ? "#000000" : "#F2F2F2" }]}
     >
       {/* Thumbnail area — tapping anywhere brings controls back */}
       <Pressable style={s.videoThumb} onPress={showControls}>
@@ -806,11 +806,19 @@ function VideoPlayerCard({
         {thumbnailUrl ? (
           <Image
             source={cloudinaryResize(thumbnailUrl, CL.videoCard) ?? undefined}
-            style={s.videoThumbInner}
-            contentFit="cover"
+            style={[
+              s.videoThumbInner,
+              { backgroundColor: isDark ? "#000000" : "#F2F2F2" },
+            ]}
+            contentFit="contain"
           />
         ) : (
-          <View style={s.videoThumbInner} />
+          <View
+            style={[
+              s.videoThumbInner,
+              { backgroundColor: isDark ? "#000000" : "#F2F2F2" },
+            ]}
+          />
         )}
 
         {/* Top-right: hide video */}
@@ -1191,7 +1199,7 @@ function FlowModeOverlay({
                   cloudinaryResize(thumbnailUrl, CL.flowMode) ?? undefined
                 }
                 style={StyleSheet.absoluteFillObject}
-                contentFit="cover"
+                contentFit="contain"
               />
             ) : null}
             {/* Bottom vignette sits on top of image */}
@@ -1336,7 +1344,7 @@ function UpNextCard({
           <Image
             source={cloudinaryResize(thumbnailUrl, CL.upNext) ?? undefined}
             style={s.upNextThumb}
-            contentFit="cover"
+            contentFit="contain"
           />
         ) : (
           <View style={[s.upNextThumb, { backgroundColor: theme.raised }]} />
@@ -1997,7 +2005,6 @@ const s = StyleSheet.create({
   videoCard: {
     borderRadius: 20,
     overflow: "hidden",
-    backgroundColor: "#0d0d0d",
   },
   videoThumb: {
     width: "100%",
@@ -2008,7 +2015,6 @@ const s = StyleSheet.create({
   },
   videoThumbInner: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "#111416",
   },
   videoTopBar: {
     position: "absolute",
