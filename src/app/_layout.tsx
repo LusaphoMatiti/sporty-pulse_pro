@@ -121,9 +121,10 @@ function handleNotificationTap(
 interface ThemedAppProps {
   hasToken: boolean;
   skipRedirect: boolean;
+  userId: string | null;
 }
 
-function ThemedApp({ hasToken, skipRedirect }: ThemedAppProps) {
+function ThemedApp({ hasToken, skipRedirect, userId }: ThemedAppProps) {
   const { theme, isDark } = useAppTheme();
   const router = useRouter();
 
@@ -181,7 +182,7 @@ function ThemedApp({ hasToken, skipRedirect }: ThemedAppProps) {
             />
             <Stack.Screen name="(tabs)" options={{ animation: "none" }} />
           </Stack>
-          <PrivacyPolicyModal />
+          {userId && <PrivacyPolicyModal userId={userId} />}
         </View>
       </SafeAreaProvider>
     </GestureHandlerRootView>
@@ -203,6 +204,7 @@ export default function RootLayout() {
 
   const [authChecked, setAuthChecked] = useState(false);
   const [hasToken, setHasToken] = useState<boolean | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
 
   // True when this cold launch's URL is the auth callback — resolved once
   // via getInitialURL, which reflects the URL that launched the process.
@@ -253,6 +255,7 @@ export default function RootLayout() {
           setHasToken(false);
         } else {
           setHasToken(true);
+          setUserId(data.id);
         }
       } catch {
         // Network error — keep token, let them try
@@ -279,7 +282,11 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider>
-      <ThemedApp hasToken={hasToken} skipRedirect={launchedViaAuthLink} />
+      <ThemedApp
+        hasToken={hasToken}
+        skipRedirect={launchedViaAuthLink}
+        userId={userId}
+      />
     </ThemeProvider>
   );
 }

@@ -236,6 +236,8 @@ export default function TrainingSystemScreen() {
           color: theme.text,
           fontFamily: fonts.brandBold,
           fontSize: rs(24, 28, 28, 32),
+          lineHeight: rs(30, 35, 35, 40),
+          paddingBottom: rs(2, 3, 3, 4),
           marginBottom: rsp(spacing[6]),
         }}
       >

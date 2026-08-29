@@ -4,6 +4,7 @@ import { Dumbbell, ArrowRight } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import { SPText } from "../../components/ui/SPText";
 import { GT } from "../../theme/gymProgramsTheme";
+import { useAppTheme } from "../../theme/ThemeContext";
 import { useResponsive } from "../../hooks/useResponsive";
 import type { HeroSplitData } from "../../types/gymPrograms";
 
@@ -14,6 +15,7 @@ interface GymHeroCardProps {
 
 export function GymHeroCard({ hero, onViewPlan }: GymHeroCardProps) {
   const { rs } = useResponsive();
+  const { theme } = useAppTheme();
 
   // Every dimension here was fixed-pixel before, which made this the
   // single biggest offender on smaller phones (56/44px icon stack + 24px
@@ -33,9 +35,22 @@ export function GymHeroCard({ hero, onViewPlan }: GymHeroCardProps) {
   const ctaLabelSize = rs(11, 12, 12, 13);
 
   return (
-    <View style={[styles.card, { padding: cardPadding }]}>
+    <View
+      style={[
+        styles.card,
+        {
+          padding: cardPadding,
+          borderColor: theme.accentDim,
+          backgroundColor: theme.surface,
+          shadowColor: theme.accent,
+        },
+      ]}
+    >
       {/* Watermark dumbbell — subtle, decorative, matches the design's
-          faint background icon on the right side of the hero card. */}
+          faint background icon on the right side of the hero card. Was a
+          hardcoded white rgba, which all but disappeared on a light
+          surface -- theme.text at low alpha keeps it faint but visible
+          in both modes (near-black on light bg, near-white on dark bg). */}
       <View
         style={[
           styles.watermark,
@@ -45,7 +60,7 @@ export function GymHeroCard({ hero, onViewPlan }: GymHeroCardProps) {
       >
         <Dumbbell
           size={watermarkSize}
-          color="rgba(255,255,255,0.04)"
+          color={theme.text + "0A"}
           strokeWidth={1.5}
         />
       </View>
@@ -58,6 +73,7 @@ export function GymHeroCard({ hero, onViewPlan }: GymHeroCardProps) {
               width: iconGlowSize,
               height: iconGlowSize,
               borderRadius: iconGlowSize / 2,
+              backgroundColor: theme.accentDim,
             },
           ]}
         >
@@ -71,22 +87,35 @@ export function GymHeroCard({ hero, onViewPlan }: GymHeroCardProps) {
               },
             ]}
           >
-            <Dumbbell size={iconSize} color={GT.accent} strokeWidth={1.75} />
+            <Dumbbell size={iconSize} color={theme.accent} strokeWidth={1.75} />
           </View>
         </View>
 
         <View style={styles.textCol}>
-          <SPText style={[styles.eyebrow, { fontSize: eyebrowSize }]}>
+          <SPText
+            style={[
+              styles.eyebrow,
+              { fontSize: eyebrowSize, color: theme.accent },
+            ]}
+          >
             YOUR SPLIT
           </SPText>
           <SPText
-            style={[styles.splitName, { fontSize: splitNameSize }]}
+            style={[
+              styles.splitName,
+              { fontSize: splitNameSize, color: theme.text },
+            ]}
             numberOfLines={1}
           >
             {hero.planName.toUpperCase()}
           </SPText>
-          <View style={styles.divider} />
-          <SPText style={[styles.description, { fontSize: descriptionSize }]}>
+          <View style={[styles.divider, { backgroundColor: theme.accent }]} />
+          <SPText
+            style={[
+              styles.description,
+              { fontSize: descriptionSize, color: theme.muted },
+            ]}
+          >
             {hero.description}
           </SPText>
         </View>
@@ -107,16 +136,22 @@ export function GymHeroCard({ hero, onViewPlan }: GymHeroCardProps) {
             {
               paddingVertical: ctaPaddingV,
               paddingHorizontal: ctaPaddingH,
+              borderColor: theme.accentDim,
             },
-            pressed && styles.viewPlanButtonPressed,
+            pressed && { backgroundColor: theme.accentDim },
           ]}
         >
-          <SPText style={[styles.viewPlanLabel, { fontSize: ctaLabelSize }]}>
+          <SPText
+            style={[
+              styles.viewPlanLabel,
+              { fontSize: ctaLabelSize, color: theme.accent },
+            ]}
+          >
             VIEW PLAN
           </SPText>
           <ArrowRight
             size={rs(12, 13, 14, 14)}
-            color={GT.accent}
+            color={theme.accent}
             strokeWidth={2}
           />
         </Pressable>
@@ -129,14 +164,12 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: GT.r24,
     borderWidth: 1,
-    borderColor: GT.accentDim,
-    backgroundColor: GT.surface,
     overflow: "hidden",
-    shadowColor: GT.accent,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.12,
     shadowRadius: 24,
     elevation: 4,
+    // borderColor/backgroundColor/shadowColor applied inline from theme
   },
   watermark: {
     position: "absolute",
@@ -148,9 +181,9 @@ const styles = StyleSheet.create({
     gap: GT.s12,
   },
   iconGlow: {
-    backgroundColor: GT.accentDim,
     alignItems: "center",
     justifyContent: "center",
+    // backgroundColor applied inline from theme.accentDim
   },
   iconWrap: {
     alignItems: "center",
@@ -163,24 +196,24 @@ const styles = StyleSheet.create({
   eyebrow: {
     fontFamily: GT.font.semiBold,
     letterSpacing: 1.2,
-    color: GT.accent,
+    // color applied inline from theme.accent
   },
   splitName: {
     fontFamily: GT.font.display,
-    color: GT.text,
     letterSpacing: 0.2,
+    // color applied inline from theme.text
   },
   divider: {
     width: 22,
     height: 3,
     borderRadius: 2,
-    backgroundColor: GT.accent,
     marginVertical: GT.s4,
+    // backgroundColor applied inline from theme.accent
   },
   description: {
     fontFamily: GT.font.medium,
-    color: GT.muted,
     lineHeight: 17,
+    // color applied inline from theme.muted
   },
   ctaRow: {
     flexDirection: "row",
@@ -191,15 +224,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: GT.s6,
     borderWidth: 1,
-    borderColor: GT.accentDim,
     borderRadius: GT.r999,
-  },
-  viewPlanButtonPressed: {
-    backgroundColor: GT.accentDim,
+    // borderColor applied inline from theme.accentDim
   },
   viewPlanLabel: {
     fontFamily: GT.font.semiBold,
     letterSpacing: 0.8,
-    color: GT.accent,
+    // color applied inline from theme.accent
   },
 });

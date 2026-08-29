@@ -3,6 +3,7 @@ import { View, Pressable, StyleSheet } from "react-native";
 import * as Haptics from "expo-haptics";
 import { SPText } from "../../components/ui/SPText";
 import { GT } from "../../theme/gymProgramsTheme";
+import { useAppTheme } from "../../theme/ThemeContext";
 import { useResponsive } from "../../hooks/useResponsive";
 import type { ScheduleExercise } from "../../types/gymPrograms";
 
@@ -27,6 +28,7 @@ export function ExpandableWorkoutList({
   onStartSession,
 }: ExpandableWorkoutListProps) {
   const { rs } = useResponsive();
+  const { theme } = useAppTheme();
 
   const containerPaddingTop = rs(12, 14, 15, 16);
   const rowPaddingV = rs(7, 8, 9, 10);
@@ -43,17 +45,22 @@ export function ExpandableWorkoutList({
           key={ex.id}
           style={[
             styles.exerciseRow,
-            { paddingVertical: rowPaddingV },
+            { paddingVertical: rowPaddingV, borderBottomColor: theme.border },
             i === exercises.length - 1 && styles.exerciseRowLast,
           ]}
         >
-          <SPText style={[styles.exerciseName, { fontSize: exerciseNameSize }]}>
+          <SPText
+            style={[
+              styles.exerciseName,
+              { fontSize: exerciseNameSize, color: theme.text },
+            ]}
+          >
             {ex.name}
           </SPText>
           <SPText
             style={[
               styles.exerciseSetsReps,
-              { fontSize: exerciseSetsRepsSize },
+              { fontSize: exerciseSetsRepsSize, color: theme.muted },
             ]}
           >
             {formatRepsScheme(ex.repsScheme)}
@@ -72,12 +79,19 @@ export function ExpandableWorkoutList({
         }}
         style={({ pressed }) => [
           styles.startButton,
-          { height: buttonHeight, marginTop: buttonMarginTop },
+          {
+            height: buttonHeight,
+            marginTop: buttonMarginTop,
+            backgroundColor: theme.accent,
+          },
           pressed && styles.startButtonPressed,
         ]}
       >
         <SPText
-          style={[styles.startButtonLabel, { fontSize: buttonLabelSize }]}
+          style={[
+            styles.startButtonLabel,
+            { fontSize: buttonLabelSize, color: theme.void },
+          ]}
         >
           START SESSION
         </SPText>
@@ -96,24 +110,24 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     borderBottomWidth: 1,
-    borderBottomColor: GT.border,
+    // borderBottomColor applied inline from theme.border
   },
   exerciseRowLast: {
     borderBottomWidth: 0,
   },
   exerciseName: {
     fontFamily: GT.font.medium,
-    color: GT.text,
+    // color applied inline from theme.text
   },
   exerciseSetsReps: {
     fontFamily: GT.font.medium,
-    color: GT.muted,
+    // color applied inline from theme.muted
   },
   startButton: {
     borderRadius: GT.r999,
-    backgroundColor: GT.accent,
     alignItems: "center",
     justifyContent: "center",
+    // backgroundColor applied inline from theme.accent
   },
   startButtonPressed: {
     opacity: 0.85,
@@ -121,6 +135,6 @@ const styles = StyleSheet.create({
   startButtonLabel: {
     fontFamily: GT.font.semiBold,
     letterSpacing: 1,
-    color: GT.void,
+    // color applied inline from theme.void
   },
 });

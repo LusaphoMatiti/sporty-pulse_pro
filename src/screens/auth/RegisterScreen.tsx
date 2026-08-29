@@ -241,25 +241,30 @@ export function RegisterScreen() {
     try {
       const baseUrl = process.env.EXPO_PUBLIC_API_URL ?? "";
       const redirectUrl = Linking.createURL("auth");
-      const authUrl = `${baseUrl}/api/auth/mobile-initiate?redirectUri=${encodeURIComponent(redirectUrl)}`;
+      const authUrl = `${baseUrl}/api/auth/mobile-initiate?redirectUri=${encodeURIComponent(redirectUrl)}&intent=register`;
+      // Storing the token and navigating on success is owned exclusively by
+      // the centralized deep-link handler in app/_layout.tsx
+      // (handleAuthDeepLink), which receives this same redirect via its own
+      // Linking "url" listener. Handling it again here raced against that
+      // handler — sometimes losing a token write, sometimes double-
+      // navigating — so this call now only opens the browser and lets
+      // _layout.tsx take it from there.
       const result = await WebBrowser.openAuthSessionAsync(
         authUrl,
         redirectUrl,
       );
 
-      if (result.type !== "success" || !result.url) return;
+      // TEMP DEBUG — remove once we've confirmed the actual result.type
+      console.log("=== GOOGLE AUTH SESSION RESULT ===");
+      console.log("type:", result.type);
+      console.log("url:", (result as any).url ?? "(none)");
 
-      const parsed = new URL(result.url);
-      const token = parsed.searchParams.get("token");
-      const isNew = parsed.searchParams.get("isNew") === "true";
-
-      if (!token) {
-        setError("Google sign-up failed.");
+      if (result.type !== "success") {
+        // User backed out, or the OS foregrounded the app via the deep
+        // link before this promise resolved — either way there's nothing
+        // to do here; _layout.tsx's listener handles a real success.
         return;
       }
-
-      await storeSessionToken(token);
-      router.replace(isNew ? ("/welcome" as any) : ("/(tabs)" as any));
     } catch {
       setError("Google sign-up failed.");
     } finally {

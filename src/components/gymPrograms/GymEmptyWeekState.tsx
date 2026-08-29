@@ -4,6 +4,7 @@ import { Lock, CalendarClock, RefreshCw } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import { SPText } from "../../components/ui/SPText";
 import { GT } from "../../theme/gymProgramsTheme";
+import { useAppTheme } from "../../theme/ThemeContext";
 import { useResponsive } from "../../hooks/useResponsive";
 
 type GymEmptyWeekStateVariant = "locked" | "noPlan";
@@ -43,6 +44,7 @@ export function GymEmptyWeekState({
 }: GymEmptyWeekStateProps) {
   const { Icon, title, body, ctaLabel } = COPY[variant];
   const { rs } = useResponsive();
+  const { theme } = useAppTheme();
 
   const cardPadding = rs(16, 18, 20, 22);
   const iconWrapSize = rs(44, 48, 52, 54);
@@ -54,7 +56,16 @@ export function GymEmptyWeekState({
   const buttonLabelSize = rs(11, 12, 12, 13);
 
   return (
-    <View style={[styles.card, { padding: cardPadding }]}>
+    <View
+      style={[
+        styles.card,
+        {
+          padding: cardPadding,
+          borderColor: theme.border,
+          backgroundColor: theme.surface,
+        },
+      ]}
+    >
       <View
         style={[
           styles.iconWrap,
@@ -62,13 +73,20 @@ export function GymEmptyWeekState({
             width: iconWrapSize,
             height: iconWrapSize,
             borderRadius: iconWrapSize / 2,
+            backgroundColor: theme.accentDim,
           },
         ]}
       >
-        <Icon size={iconSize} color={GT.accent} strokeWidth={1.75} />
+        <Icon size={iconSize} color={theme.accent} strokeWidth={1.75} />
       </View>
-      <SPText style={[styles.title, { fontSize: titleSize }]}>{title}</SPText>
-      <SPText style={[styles.body, { fontSize: bodySize }]}>{body}</SPText>
+      <SPText
+        style={[styles.title, { fontSize: titleSize, color: theme.text }]}
+      >
+        {title}
+      </SPText>
+      <SPText style={[styles.body, { fontSize: bodySize, color: theme.muted }]}>
+        {body}
+      </SPText>
       <Pressable
         onPress={() => {
           try {
@@ -80,14 +98,23 @@ export function GymEmptyWeekState({
         }}
         style={({ pressed }) => [
           styles.button,
-          { height: buttonHeight, paddingHorizontal: buttonPaddingH },
+          {
+            height: buttonHeight,
+            paddingHorizontal: buttonPaddingH,
+            backgroundColor: theme.accent,
+          },
           pressed && styles.buttonPressed,
         ]}
       >
         {variant === "noPlan" ? (
-          <RefreshCw size={13} color={GT.void} strokeWidth={2} />
+          <RefreshCw size={13} color={theme.void} strokeWidth={2} />
         ) : null}
-        <SPText style={[styles.buttonLabel, { fontSize: buttonLabelSize }]}>
+        <SPText
+          style={[
+            styles.buttonLabel,
+            { fontSize: buttonLabelSize, color: theme.void },
+          ]}
+        >
           {ctaLabel}
         </SPText>
       </Pressable>
@@ -99,28 +126,27 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: GT.r24,
     borderWidth: 1,
-    borderColor: GT.border,
-    backgroundColor: GT.surface,
     alignItems: "center",
     gap: GT.s8,
+    // borderColor/backgroundColor applied inline from theme
   },
   iconWrap: {
-    backgroundColor: GT.accentDim,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: GT.s8,
+    // backgroundColor applied inline from theme.accentDim
   },
   title: {
     fontFamily: GT.font.display,
-    color: GT.text,
     textAlign: "center",
+    // color applied inline from theme.text
   },
   body: {
     fontFamily: GT.font.medium,
-    color: GT.muted,
     textAlign: "center",
     lineHeight: 19,
     marginBottom: GT.s8,
+    // color applied inline from theme.muted
   },
   button: {
     flexDirection: "row",
@@ -128,7 +154,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: GT.s8,
     borderRadius: GT.r999,
-    backgroundColor: GT.accent,
+    // backgroundColor applied inline from theme.accent
   },
   buttonPressed: {
     opacity: 0.85,
@@ -136,6 +162,6 @@ const styles = StyleSheet.create({
   buttonLabel: {
     fontFamily: GT.font.semiBold,
     letterSpacing: 0.8,
-    color: GT.void,
+    // color applied inline from theme.void
   },
 });

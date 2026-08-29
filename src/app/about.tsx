@@ -69,8 +69,8 @@ export default function AboutScreen() {
         style={{
           color: theme.text,
           fontFamily: fonts.brandBold,
-          fontSize: rs(26, 28, 30, 34),
-          marginBottom: rsp(spacing[6]),
+          fontSize: rs(20, 22, 24, 28),
+          marginBottom: spacing[5],
         }}
       >
         About Us

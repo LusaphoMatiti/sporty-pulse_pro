@@ -1,9 +1,3 @@
-// ─────────────────────────────────────────────
-// Fixed dark palette for the Gym Programs screen, matching the design
-// brief exactly. This screen is dark-only by design (same treatment as
-// OnboardingScreen's fixed `T` token object) rather than theme-adaptive.
-// ─────────────────────────────────────────────
-
 export const GT = {
   background: "#0C0E10",
   surface: "#13171A",

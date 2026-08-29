@@ -17,6 +17,7 @@ import * as Haptics from "expo-haptics";
 import { SPText } from "../components/ui/SPText";
 import { api } from "../lib/api";
 import { GT } from "../theme/gymProgramsTheme";
+import { useAppTheme } from "../theme/ThemeContext";
 import { DAY_ABBREV } from "../../contants/gymFocusMap";
 import { GymHeroCard } from "../components/gymPrograms/GymHeroCard";
 import { WeeklyDayCard } from "../components/gymPrograms/WeeklyDayCard";
@@ -61,6 +62,11 @@ export default function GymProgramsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { rs } = useResponsive();
+  // GT (gymProgramsTheme) still supplies spacing/radius/font tokens, which
+  // don't change with light/dark. Colors now come from the shared
+  // ThemeContext instead of GT's fixed dark palette, so this screen tracks
+  // the rest of the app's theme rather than always rendering dark.
+  const { theme } = useAppTheme();
 
   const [weeklyScheduleLocked, setWeeklyScheduleLocked] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -199,14 +205,16 @@ export default function GymProgramsScreen() {
 
   if (loading) {
     return (
-      <View style={[styles.screen, styles.centered]}>
-        <ActivityIndicator color={GT.accent} />
+      <View
+        style={[styles.screen, styles.centered, { backgroundColor: theme.bg }]}
+      >
+        <ActivityIndicator color={theme.accent} />
       </View>
     );
   }
 
   return (
-    <View style={styles.screen}>
+    <View style={[styles.screen, { backgroundColor: theme.bg }]}>
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
@@ -223,10 +231,28 @@ export default function GymProgramsScreen() {
           style={[styles.header, { marginBottom: headerMarginBottom }]}
         >
           <View style={styles.headerTextCol}>
-            <SPText style={[styles.title, { fontSize: rs(22, 24, 26, 28) }]}>
+            <SPText
+              style={[
+                styles.title,
+                {
+                  color: theme.text,
+                  fontSize: rs(22, 24, 26, 28),
+                  // Explicit lineHeight (+ a touch of bottom padding) so
+                  // the display font's descenders (the "g" in "Gym"/
+                  // "Programs") aren't clipped at the bottom edge.
+                  lineHeight: rs(28, 30, 32, 34),
+                  paddingBottom: rs(2, 3, 3, 4),
+                },
+              ]}
+            >
               Gym Programs
             </SPText>
-            <SPText style={[styles.subtitle, { fontSize: rs(12, 13, 13, 14) }]}>
+            <SPText
+              style={[
+                styles.subtitle,
+                { color: theme.muted, fontSize: rs(12, 13, 13, 14) },
+              ]}
+            >
               Your weekly training schedule.
             </SPText>
           </View>
@@ -239,13 +265,14 @@ export default function GymProgramsScreen() {
                 width: calendarButtonSize,
                 height: calendarButtonSize,
                 borderRadius: calendarButtonSize / 2,
+                borderColor: theme.accentDim,
               },
-              pressed && styles.calendarButtonPressed,
+              pressed && { backgroundColor: theme.accentDim },
             ]}
           >
             <Calendar
               size={rs(16, 18, 19, 20)}
-              color={GT.accent}
+              color={theme.accent}
               strokeWidth={1.75}
             />
           </Pressable>
@@ -268,6 +295,7 @@ export default function GymProgramsScreen() {
             style={[
               styles.weekLabel,
               {
+                color: theme.muted,
                 fontSize: rs(10, 11, 11, 12),
                 marginBottom: rs(10, 11, 12, 12),
               },
@@ -302,7 +330,7 @@ export default function GymProgramsScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: GT.background,
+    // backgroundColor applied inline from theme.bg
   },
   centered: {
     alignItems: "center",
@@ -324,30 +352,24 @@ const styles = StyleSheet.create({
     fontFamily: GT.font.semiBold,
     fontSize: 12,
     letterSpacing: 1.5,
-    color: GT.muted,
-  },
-  eyebrowAccent: {
-    color: GT.accent,
+    // color applied inline from theme.muted where used
   },
   title: {
     fontFamily: GT.font.display,
-    color: GT.text,
     marginTop: GT.s4,
+    // color/fontSize/lineHeight applied inline from theme + rs()
   },
   subtitle: {
     fontFamily: GT.font.medium,
-    color: GT.muted,
     marginTop: GT.s2,
+    // color/fontSize applied inline from theme + rs()
   },
   calendarButton: {
     borderWidth: 1,
-    borderColor: GT.accentDim,
     alignItems: "center",
     justifyContent: "center",
     marginTop: GT.s4,
-  },
-  calendarButtonPressed: {
-    backgroundColor: GT.accentDim,
+    // borderColor applied inline from theme.accentDim
   },
   heroSection: {
     // marginBottom is applied responsively inline above
@@ -358,6 +380,6 @@ const styles = StyleSheet.create({
   weekLabel: {
     fontFamily: GT.font.semiBold,
     letterSpacing: 1.2,
-    color: GT.muted,
+    // color applied inline from theme.muted
   },
 });

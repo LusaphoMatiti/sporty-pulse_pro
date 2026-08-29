@@ -5,6 +5,7 @@ import { View, StyleSheet } from "react-native";
 import { Clock, BarChart3 } from "lucide-react-native";
 import { SPText } from "../../components/ui/SPText";
 import { GT } from "../../theme/gymProgramsTheme";
+import { useAppTheme } from "../../theme/ThemeContext";
 
 interface MetadataRowProps {
   durationLabel: string | null; // e.g. "45 MIN"
@@ -17,9 +18,10 @@ export function MetadataRow({
   difficultyLabel,
   muted = false,
 }: MetadataRowProps) {
+  const { theme } = useAppTheme();
   if (!durationLabel && !difficultyLabel) return null;
 
-  const color = muted ? GT.muted2 : GT.muted;
+  const color = muted ? theme.muted2 : theme.muted;
 
   return (
     <View style={styles.row}>

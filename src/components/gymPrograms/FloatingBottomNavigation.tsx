@@ -4,6 +4,7 @@ import * as Haptics from "expo-haptics";
 import { Home, Dumbbell, TrendingUp, Settings } from "lucide-react-native";
 import { SPText } from "../../components/ui/SPText";
 import { GT } from "../../theme/gymProgramsTheme";
+import { useAppTheme } from "../../theme/ThemeContext";
 import { useResponsive } from "../../hooks/useResponsive";
 import type { BottomNavTab } from "../../types/gymPrograms";
 
@@ -36,6 +37,7 @@ export function FloatingBottomNavigation({
   bottomInset,
 }: FloatingBottomNavigationProps) {
   const { rs } = useResponsive();
+  const { theme } = useAppTheme();
 
   const sideMargin = rs(12, 14, 15, 16);
   const paddingTop = rs(6, 7, 8, 8);
@@ -53,16 +55,26 @@ export function FloatingBottomNavigation({
           left: sideMargin,
           right: sideMargin,
           bottom: bottomInset + GT.s12,
+          borderColor: theme.border,
         },
       ]}
     >
-      <View style={[styles.blur, { paddingTop, paddingBottom }]}>
+      <View
+        style={[
+          styles.blur,
+          // Was a hardcoded dark rgba blur regardless of theme -- appending
+          // alpha to theme.surface (a plain hex color) keeps the same
+          // translucent-blur look but in whichever mode is active.
+          { backgroundColor: theme.surface + "B8", paddingTop, paddingBottom },
+        ]}
+      >
         <View style={[styles.indicatorTrack, { marginHorizontal: sideMargin }]}>
           <View
             style={[
               styles.indicator,
               {
                 left: `${NAV_ITEMS.findIndex((i) => i.key === activeTab) * 25}%`,
+                backgroundColor: theme.accent,
               },
             ]}
           />
@@ -91,20 +103,20 @@ export function FloatingBottomNavigation({
                       height: iconWrapSize,
                       borderRadius: iconWrapSize / 2,
                     },
-                    isActive && styles.iconWrapActive,
+                    isActive && { backgroundColor: theme.accentDim },
                   ]}
                 >
                   <item.Icon
                     size={iconSize}
-                    color={isActive ? GT.accent : GT.muted}
+                    color={isActive ? theme.accent : theme.muted}
                     strokeWidth={1.75}
                   />
                 </View>
                 <SPText
                   style={[
                     styles.label,
-                    { fontSize: labelSize },
-                    isActive && styles.labelActive,
+                    { fontSize: labelSize, color: theme.muted },
+                    isActive && { color: theme.accent },
                   ]}
                 >
                   {item.label}
@@ -124,10 +136,10 @@ const styles = StyleSheet.create({
     borderRadius: GT.r24,
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: GT.border,
+    // borderColor applied inline from theme.border
   },
   blur: {
-    backgroundColor: "rgba(19,23,26,0.72)",
+    // backgroundColor applied inline from theme.surface (+ alpha)
   },
   indicatorTrack: {
     height: 2,
@@ -138,7 +150,7 @@ const styles = StyleSheet.create({
     width: "25%",
     height: 2,
     borderRadius: 1,
-    backgroundColor: GT.accent,
+    // backgroundColor applied inline from theme.accent
   },
   row: {
     flexDirection: "row",
@@ -151,15 +163,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  iconWrapActive: {
-    backgroundColor: GT.accentDim,
-  },
   label: {
     fontFamily: GT.font.medium,
     letterSpacing: 0.6,
-    color: GT.muted,
-  },
-  labelActive: {
-    color: GT.accent,
+    // color applied inline from theme.muted / theme.accent
   },
 });

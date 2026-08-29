@@ -10,6 +10,7 @@ import Animated, {
 import { ChevronRight, ChevronDown, Lock } from "lucide-react-native";
 import { SPText } from "../../components/ui/SPText";
 import { GT, GYM_PRESS_SPRING } from "../../theme/gymProgramsTheme";
+import { useAppTheme } from "../../theme/ThemeContext";
 import { MUSCLE_ICON_MAP, DefaultFocusIcon } from "../icons/MuscleIcons";
 import { resolveMuscleFocus } from "../../../contants/gymFocusMap";
 import { MetadataRow } from "./MetadataRow";
@@ -24,6 +25,7 @@ interface WeeklyDayCardProps {
 
 export function WeeklyDayCard({ day, onStartSession }: WeeklyDayCardProps) {
   const { rs } = useResponsive();
+  const { theme } = useAppTheme();
   const [expanded, setExpanded] = useState(false);
   const [contentHeight, setContentHeight] = useState(0);
 
@@ -61,6 +63,15 @@ export function WeeklyDayCard({ day, onStartSession }: WeeklyDayCardProps) {
   const expandPaddingH = rs(12, 14, 15, 16);
   const expandPaddingBottom = rs(12, 14, 15, 16);
 
+  // Colors depend on both theme and locked state, so they're computed
+  // once here and applied inline everywhere below, rather than mixing
+  // static GT-based style fragments with runtime conditionals.
+  const dayAbbrevColor = isLocked ? theme.muted2 : theme.text;
+  const titleColor = isLocked ? theme.muted : theme.text;
+  const subtitleColor = isLocked ? theme.muted2 : theme.muted;
+  const iconColor = isLocked ? theme.muted2 : theme.accent;
+  const iconBorderColor = isLocked ? theme.border : theme.accentDim;
+
   function toggleExpand() {
     if (isLocked) return;
     try {
@@ -96,8 +107,16 @@ export function WeeklyDayCard({ day, onStartSession }: WeeklyDayCardProps) {
     <Animated.View
       style={[
         styles.card,
+        { backgroundColor: theme.surface, borderColor: theme.border },
         { marginBottom: cardMarginBottom },
-        day.isToday && styles.cardToday,
+        day.isToday && [
+          styles.cardToday,
+          {
+            borderColor: theme.accent,
+            backgroundColor: theme.surface2,
+            shadowColor: theme.accent,
+          },
+        ],
         isLocked && styles.cardLocked,
         cardAnimatedStyle,
       ]}
@@ -126,20 +145,28 @@ export function WeeklyDayCard({ day, onStartSession }: WeeklyDayCardProps) {
           <SPText
             style={[
               styles.dayAbbrev,
-              { fontSize: dayAbbrevSize },
-              isLocked && styles.mutedText,
+              { fontSize: dayAbbrevSize, color: dayAbbrevColor },
             ]}
           >
             {day.dayAbbrev}
           </SPText>
           {day.isToday ? (
-            <View style={styles.todayBadge}>
-              <SPText style={styles.todayBadgeText}>TODAY</SPText>
+            <View
+              style={[styles.todayBadge, { backgroundColor: theme.accent }]}
+            >
+              <SPText style={[styles.todayBadgeText, { color: theme.void }]}>
+                TODAY
+              </SPText>
             </View>
           ) : null}
         </View>
 
-        <View style={[styles.divider, { height: dividerHeight }]} />
+        <View
+          style={[
+            styles.divider,
+            { height: dividerHeight, backgroundColor: theme.border },
+          ]}
+        />
 
         <View
           style={[
@@ -148,24 +175,16 @@ export function WeeklyDayCard({ day, onStartSession }: WeeklyDayCardProps) {
               width: iconWrapSize,
               height: iconWrapSize,
               borderRadius: iconWrapSize / 2,
+              borderColor: iconBorderColor,
             },
-            isLocked && styles.iconWrapLocked,
           ]}
         >
-          <IconComp
-            size={iconSize}
-            color={isLocked ? GT.muted2 : GT.accent}
-            strokeWidth={1.5}
-          />
+          <IconComp size={iconSize} color={iconColor} strokeWidth={1.5} />
         </View>
 
         <View style={styles.textCol}>
           <SPText
-            style={[
-              styles.title,
-              { fontSize: titleSize },
-              isLocked && styles.mutedTitle,
-            ]}
+            style={[styles.title, { fontSize: titleSize, color: titleColor }]}
             numberOfLines={1}
           >
             {titleLabel.toUpperCase()}
@@ -173,8 +192,7 @@ export function WeeklyDayCard({ day, onStartSession }: WeeklyDayCardProps) {
           <SPText
             style={[
               styles.subtitle,
-              { fontSize: subtitleSize },
-              isLocked && styles.mutedText,
+              { fontSize: subtitleSize, color: subtitleColor },
             ]}
           >
             {sessionCountLabel}
@@ -193,7 +211,7 @@ export function WeeklyDayCard({ day, onStartSession }: WeeklyDayCardProps) {
           {isLocked ? (
             <Lock
               size={rs(16, 17, 18, 18)}
-              color={GT.muted2}
+              color={theme.muted2}
               strokeWidth={1.75}
             />
           ) : (
@@ -204,14 +222,18 @@ export function WeeklyDayCard({ day, onStartSession }: WeeklyDayCardProps) {
                   width: arrowCircleSize,
                   height: arrowCircleSize,
                   borderRadius: arrowCircleSize / 2,
+                  // Was a hardcoded white rgba border -- theme.text at low
+                  // alpha keeps a faint ring in both modes instead of an
+                  // invisible-on-light-bg white line.
+                  borderColor: theme.text + "33",
                 },
                 chevronAnimatedStyle,
               ]}
             >
               {expanded ? (
-                <ChevronDown size={14} color={GT.accent} strokeWidth={2} />
+                <ChevronDown size={14} color={theme.accent} strokeWidth={2} />
               ) : (
-                <ChevronRight size={14} color={GT.text} strokeWidth={2} />
+                <ChevronRight size={14} color={theme.text} strokeWidth={2} />
               )}
             </Animated.View>
           )}
@@ -231,7 +253,9 @@ export function WeeklyDayCard({ day, onStartSession }: WeeklyDayCardProps) {
             onLayout={handleMeasure}
             pointerEvents={expanded ? "auto" : "none"}
           >
-            <View style={styles.expandDivider} />
+            <View
+              style={[styles.expandDivider, { backgroundColor: theme.border }]}
+            />
             <ExpandableWorkoutList
               exercises={day.exercises}
               onStartSession={() => onStartSession(day)}
@@ -247,19 +271,16 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: GT.r20,
     borderWidth: 1,
-    borderColor: GT.border,
-    backgroundColor: GT.surface,
     overflow: "hidden",
+    // backgroundColor/borderColor applied inline from theme
   },
   cardToday: {
-    borderColor: GT.accent,
-    backgroundColor: GT.surface2,
-    shadowColor: GT.accent,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.35,
     shadowRadius: 14,
     elevation: 6,
     transform: [{ translateY: -1 }],
+    // borderColor/backgroundColor/shadowColor applied inline from theme
   },
   cardLocked: {
     opacity: 0.55,
@@ -274,33 +295,30 @@ const styles = StyleSheet.create({
   dayAbbrev: {
     fontFamily: GT.font.semiBold,
     letterSpacing: 0.5,
-    color: GT.text,
+    // color applied inline (theme + locked state)
   },
   todayBadge: {
-    backgroundColor: GT.accent,
     borderRadius: GT.r8,
     paddingHorizontal: GT.s6,
     paddingVertical: 2,
     alignSelf: "flex-start",
+    // backgroundColor applied inline from theme.accent
   },
   todayBadgeText: {
     fontFamily: GT.font.semiBold,
     fontSize: 8,
     letterSpacing: 0.5,
-    color: GT.void,
+    // color applied inline from theme.void
   },
   divider: {
     width: 1,
-    backgroundColor: GT.border,
+    // backgroundColor applied inline from theme.border
   },
   iconWrap: {
     borderWidth: 1,
-    borderColor: GT.accentDim,
     alignItems: "center",
     justifyContent: "center",
-  },
-  iconWrapLocked: {
-    borderColor: GT.border,
+    // borderColor applied inline (theme + locked state)
   },
   textCol: {
     flex: 1,
@@ -308,18 +326,12 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: GT.font.display,
-    color: GT.text,
     letterSpacing: 0.2,
-  },
-  mutedTitle: {
-    color: GT.muted,
+    // color applied inline (theme + locked state)
   },
   subtitle: {
     fontFamily: GT.font.medium,
-    color: GT.muted,
-  },
-  mutedText: {
-    color: GT.muted2,
+    // color applied inline (theme + locked state)
   },
   actionCol: {
     width: 28,
@@ -328,9 +340,9 @@ const styles = StyleSheet.create({
   },
   arrowCircle: {
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.20)",
     alignItems: "center",
     justifyContent: "center",
+    // borderColor applied inline from theme.text (+ alpha)
   },
   expandWrap: {
     overflow: "hidden",
@@ -340,7 +352,7 @@ const styles = StyleSheet.create({
   },
   expandDivider: {
     height: 1,
-    backgroundColor: GT.border,
     marginBottom: GT.s4,
+    // backgroundColor applied inline from theme.border
   },
 });

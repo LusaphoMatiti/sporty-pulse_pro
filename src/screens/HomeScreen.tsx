@@ -781,7 +781,12 @@ function WeekOverviewCard({
             <View key={s.label} style={styles.weekStat}>
               <SPText
                 variant="statLg"
-                style={{ color: theme.text, fontSize: 24, lineHeight: 28 }}
+                style={{
+                  color: theme.text,
+                  fontSize: 24,
+                  lineHeight: 28,
+                  letterSpacing: 1,
+                }}
               >
                 {s.value}
               </SPText>

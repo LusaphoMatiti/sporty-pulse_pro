@@ -675,6 +675,7 @@ function EditProfileSheet({
                           ]}
                         >
                           <SPText
+                            numberOfLines={1}
                             style={[
                               D.type.subtext,
                               {
@@ -801,6 +802,12 @@ const sheetStyles = StyleSheet.create({
     borderWidth: 1,
     padding: D.space.std,
     gap: D.space.micro,
+    // Fixed height (reusing the existing row token) so all three cards
+    // match regardless of label length -- "Intermediate" is long enough
+    // to wrap onto a second line at this width, which was stretching just
+    // that card taller than "Beginner"/"Advanced" beside it.
+    height: D.row.height,
+    justifyContent: "center",
   },
 });
 
