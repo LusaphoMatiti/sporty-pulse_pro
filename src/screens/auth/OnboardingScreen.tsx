@@ -9,6 +9,7 @@ import {
   ImageBackground,
   useWindowDimensions,
   Modal,
+  TextInput,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -57,6 +58,7 @@ import {
   X,
   Check,
   ShieldCheck,
+  Search,
 } from "lucide-react-native";
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
@@ -2158,6 +2160,7 @@ export function OnboardingScreen() {
   const [equipmentList, setEquipmentList] = useState<EquipmentItem[]>([]);
   const [equipmentLoading, setEquipmentLoading] = useState(false);
   const [equipmentError, setEquipmentError] = useState(false);
+  const [equipmentSearch, setEquipmentSearch] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
@@ -2376,6 +2379,12 @@ export function OnboardingScreen() {
   );
   const displayedEquipmentName =
     purchasedEquipment[0]?.name ?? selectedEquipment?.name ?? null;
+
+  const filteredEquipmentList = equipmentSearch.trim()
+    ? equipmentList.filter((item) =>
+        item.name.toLowerCase().includes(equipmentSearch.trim().toLowerCase()),
+      )
+    : equipmentList;
 
   // ── Confirm screen — full-bleed background image ─────────────────────────────
   if (checkingPurchases) {
@@ -2823,16 +2832,48 @@ export function OnboardingScreen() {
                 )}
 
                 {!equipmentLoading && !equipmentError && (
-                  <View style={styles.options}>
-                    {equipmentList.map((item) => (
-                      <EquipmentRow
-                        key={item.id}
-                        item={item}
-                        selected={answers.equipmentId === item.id}
-                        onPress={() => setAnswer("equipmentId", item.id)}
+                  <>
+                    <View style={styles.searchBar}>
+                      <Search size={16} color={T.muted2} strokeWidth={2} />
+                      <TextInput
+                        value={equipmentSearch}
+                        onChangeText={setEquipmentSearch}
+                        placeholder="Search equipment…"
+                        placeholderTextColor={T.muted}
+                        style={styles.searchInput}
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        returnKeyType="search"
                       />
-                    ))}
-                  </View>
+                      {equipmentSearch.length > 0 && (
+                        <Pressable
+                          onPress={() => setEquipmentSearch("")}
+                          hitSlop={8}
+                        >
+                          <X size={16} color={T.muted2} strokeWidth={2} />
+                        </Pressable>
+                      )}
+                    </View>
+
+                    {filteredEquipmentList.length > 0 ? (
+                      <View style={styles.options}>
+                        {filteredEquipmentList.map((item) => (
+                          <EquipmentRow
+                            key={item.id}
+                            item={item}
+                            selected={answers.equipmentId === item.id}
+                            onPress={() => setAnswer("equipmentId", item.id)}
+                          />
+                        ))}
+                      </View>
+                    ) : (
+                      <View style={styles.noResultsBox}>
+                        <SPText style={styles.noResultsText}>
+                          Equipment currently not available
+                        </SPText>
+                      </View>
+                    )}
+                  </>
                 )}
               </View>
             )}
@@ -3050,6 +3091,36 @@ const styles = StyleSheet.create({
 
   options: {
     gap: T.s8,
+  },
+
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: T.s8,
+    backgroundColor: T.surface2,
+    borderWidth: 1,
+    borderColor: T.border,
+    borderRadius: T.r12,
+    paddingHorizontal: T.s12,
+    height: 44,
+  },
+  searchInput: {
+    flex: 1,
+    fontFamily: "Barlow-Regular",
+    fontSize: 14,
+    color: T.text,
+    padding: 0,
+  },
+
+  noResultsBox: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: T.s32,
+  },
+  noResultsText: {
+    fontFamily: "Barlow-Regular",
+    fontSize: 13,
+    color: T.muted2,
   },
 
   // Identity badge on confirm screen

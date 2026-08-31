@@ -178,6 +178,17 @@ export function logRecovery(payload: {
   return api.post<{ recoveryPct: number }>("/api/recovery/log", payload);
 }
 
+/** Persist a full drag-reordered week for the user's active gym plan */
+export function reorderWeeklySchedule(
+  instanceId: string,
+  arrangement: { dayOfWeek: number; plannedSessionId: string | null }[],
+) {
+  return api.post<{ ok: boolean }>("/api/programs/schedule/reorder", {
+    instanceId,
+    arrangement,
+  });
+}
+
 export interface RecoveryLog {
   sleepHours?: number;
   sleepQuality: number; // 1–5

@@ -2,12 +2,7 @@
  * Sporty Pulse Pro — Theme Context
  * Provides light / dark theming across the Expo app.
  * Persists the user's preference to AsyncStorage.
- *
- * Setup:
- *   1. Install: npx expo install expo-secure-store
- *   2. Wrap your root layout with <ThemeProvider> in app/_layout.tsx
- *   3. Consume anywhere: const { isDark, toggleTheme, theme } = useAppTheme()
- */
+ **/
 
 import React, {
   createContext,
@@ -16,7 +11,6 @@ import React, {
   useEffect,
   useState,
 } from "react";
-import { useColorScheme } from "react-native";
 import * as SecureStore from "expo-secure-store";
 
 // ─── Token interface ───────────────────────────────────────────────────────────
@@ -99,7 +93,6 @@ const ThemeContext = createContext<ThemeContextValue>({
 // ─── Provider ──────────────────────────────────────────────────────────────────
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const systemScheme = useColorScheme(); // "light" | "dark" | null
   const [mode, setModeState] = useState<ThemeMode>("dark");
   const [hydrated, setHydrated] = useState(false);
 
@@ -110,8 +103,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         if (stored === "light" || stored === "dark") {
           setModeState(stored);
         } else {
-          // First launch — follow system, default dark if unknown
-          setModeState(systemScheme === "light" ? "light" : "dark");
+          // First launch, no saved preference yet — always default to
+          // dark, regardless of the device's system color scheme. The
+          // user can still switch to light mode from SettingsScreen at
+          // any time, and that choice is what gets persisted here.
+          setModeState("dark");
         }
       })
       .catch(() => {

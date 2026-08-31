@@ -31,6 +31,7 @@ export interface ScheduleDay {
   exercises: ScheduleExercise[];
   isRestDay: boolean;
   isToday: boolean;
+  plannedSessionId: string | null; // needed to persist a drag-and-drop reorder
 }
 
 export interface HeroSplitData {

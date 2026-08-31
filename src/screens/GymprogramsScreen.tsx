@@ -13,9 +13,13 @@ import Animated, {
 import { Calendar } from "lucide-react-native";
 import { Pressable } from "react-native";
 import * as Haptics from "expo-haptics";
+import DraggableFlatList, {
+  RenderItemParams,
+  ScaleDecorator,
+} from "react-native-draggable-flatlist";
 
 import { SPText } from "../components/ui/SPText";
-import { api } from "../lib/api";
+import { api, reorderWeeklySchedule } from "../lib/api";
 import { GT } from "../theme/gymProgramsTheme";
 import { useAppTheme } from "../theme/ThemeContext";
 import { DAY_ABBREV } from "../../contants/gymFocusMap";
@@ -38,17 +42,10 @@ interface WorkoutPlanSummary {
 
 interface ProgramsApiResponse {
   plans: WorkoutPlanSummary[];
-  access: { activePlanId: string | null };
+  access: { activePlanId: string | null; activeInstanceId: string | null };
   trainingLocation: "HOME" | "GYM" | null;
   weeklySchedule: Omit<ScheduleDay, "dayAbbrev" | "isToday">[] | null;
   weeklyScheduleLocked: boolean;
-}
-
-interface ProgramsApiResponse {
-  plans: WorkoutPlanSummary[];
-  access: { activePlanId: string | null };
-  trainingLocation: "HOME" | "GYM" | null;
-  weeklySchedule: Omit<ScheduleDay, "dayAbbrev" | "isToday">[] | null;
 }
 
 function getTodayIndex(): number {
@@ -75,6 +72,11 @@ export default function GymProgramsScreen() {
   const [activeInstancePlanId, setActiveInstancePlanId] = useState<
     string | null
   >(null);
+  const [activeInstanceId, setActiveInstanceId] = useState<string | null>(null);
+  // Local-only guard so a card mid network-reorder can't be dragged again
+  // until that request settles — prevents two overlapping swaps racing
+  // each other's optimistic state.
+  const [reordering, setReordering] = useState(false);
 
   const heroTranslateY = useSharedValue(24);
   const heroOpacity = useSharedValue(0);
@@ -97,6 +99,7 @@ export default function GymProgramsScreen() {
       );
 
       setActiveInstancePlanId(data.access.activePlanId);
+      setActiveInstanceId(data.access.activeInstanceId);
       setWeeklyScheduleLocked(!!data.weeklyScheduleLocked);
 
       if (activePlan) {
@@ -194,6 +197,79 @@ export default function GymProgramsScreen() {
     router.push("/upgrade" as any);
   }
 
+  // Applies a real shift-based reorder: dragging one day onto another
+  // shifts everything in between by one, exactly like any normal
+  // drag-reorder list — not a two-item-only swap. `data` is the library's
+  // own already-correctly-reordered array; we only ever take its content
+  // fields, never its day-identity fields (dayIndex/dayLabel/dayAbbrev/
+  // isToday/difficulty), which stay pinned to position — position 0 is
+  // always Monday, position 6 is always Sunday, regardless of which
+  // session's content is currently sitting there. Optimistic: applies
+  // locally immediately, then persists, rolling back if the request fails.
+  const handleDragEnd = useCallback(
+    async ({ data }: { data: ScheduleDay[] }) => {
+      if (!activeInstanceId || reordering) return;
+
+      const previousDays = days;
+
+      const nextDays = previousDays.map((day, i) => ({
+        ...day,
+        sessionNumber: data[i].sessionNumber,
+        focus: data[i].focus,
+        estimatedMinutes: data[i].estimatedMinutes,
+        exercises: data[i].exercises,
+        isRestDay: data[i].isRestDay,
+        plannedSessionId: data[i].plannedSessionId,
+      }));
+
+      // No-op drag (dropped back where it started) — skip the network call.
+      const unchanged = nextDays.every(
+        (d, i) => d.plannedSessionId === previousDays[i].plannedSessionId,
+      );
+      if (unchanged) return;
+
+      setDays(nextDays);
+
+      try {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } catch {
+        // haptics unsupported on this device/simulator — ignore
+      }
+
+      setReordering(true);
+      try {
+        await reorderWeeklySchedule(
+          activeInstanceId,
+          nextDays.map((d) => ({
+            dayOfWeek: d.dayIndex,
+            plannedSessionId: d.plannedSessionId,
+          })),
+        );
+      } catch (err) {
+        console.error("[GymProgramsScreen] failed to save reorder:", err);
+        setDays(previousDays);
+      } finally {
+        setReordering(false);
+      }
+    },
+    [activeInstanceId, days, reordering],
+  );
+
+  const renderDayCard = useCallback(
+    ({ item, drag, isActive }: RenderItemParams<ScheduleDay>) => (
+      <ScaleDecorator>
+        <WeeklyDayCard
+          day={item}
+          onStartSession={handleStartSession}
+          drag={reordering ? undefined : drag}
+          isActive={isActive}
+          dragDisabled={reordering}
+        />
+      </ScaleDecorator>
+    ),
+    [reordering],
+  );
+
   // ─── Responsive values ────────────────────────────────────────────────
   // Everything here was previously fixed-pixel (GT.sNN), which is why the
   // screen read "too big" on smaller phones and didn't tighten up at all
@@ -213,116 +289,137 @@ export default function GymProgramsScreen() {
     );
   }
 
-  return (
-    <View style={[styles.screen, { backgroundColor: theme.bg }]}>
-      <ScrollView
-        contentContainerStyle={[
-          styles.scrollContent,
-          {
-            paddingHorizontal: contentPaddingH,
-            paddingTop: insets.top + rs(8, 10, 12, 12),
-            paddingBottom: insets.bottom + rs(110, 120, 130, 140),
-          },
-        ]}
-        showsVerticalScrollIndicator={false}
+  const headerContent = (
+    <>
+      <Animated.View
+        entering={FadeIn.duration(280)}
+        style={[styles.header, { marginBottom: headerMarginBottom }]}
       >
-        <Animated.View
-          entering={FadeIn.duration(280)}
-          style={[styles.header, { marginBottom: headerMarginBottom }]}
-        >
-          <View style={styles.headerTextCol}>
-            <SPText
-              style={[
-                styles.title,
-                {
-                  color: theme.text,
-                  fontSize: rs(22, 24, 26, 28),
-                  // Explicit lineHeight (+ a touch of bottom padding) so
-                  // the display font's descenders (the "g" in "Gym"/
-                  // "Programs") aren't clipped at the bottom edge.
-                  lineHeight: rs(28, 30, 32, 34),
-                  paddingBottom: rs(2, 3, 3, 4),
-                },
-              ]}
-            >
-              Gym Programs
-            </SPText>
-            <SPText
-              style={[
-                styles.subtitle,
-                { color: theme.muted, fontSize: rs(12, 13, 13, 14) },
-              ]}
-            >
-              Your weekly training schedule.
-            </SPText>
-          </View>
-
-          <Pressable
-            onPress={handleCalendarPress}
-            style={({ pressed }) => [
-              styles.calendarButton,
-              {
-                width: calendarButtonSize,
-                height: calendarButtonSize,
-                borderRadius: calendarButtonSize / 2,
-                borderColor: theme.accentDim,
-              },
-              pressed && { backgroundColor: theme.accentDim },
-            ]}
-          >
-            <Calendar
-              size={rs(16, 18, 19, 20)}
-              color={theme.accent}
-              strokeWidth={1.75}
-            />
-          </Pressable>
-        </Animated.View>
-
-        {hero ? (
-          <Animated.View
-            style={[
-              styles.heroSection,
-              { marginBottom: heroMarginBottom },
-              heroAnimatedStyle,
-            ]}
-          >
-            <GymHeroCard hero={hero} onViewPlan={handleViewPlan} />
-          </Animated.View>
-        ) : null}
-
-        <View style={styles.weekSection}>
+        <View style={styles.headerTextCol}>
           <SPText
             style={[
-              styles.weekLabel,
+              styles.title,
               {
-                color: theme.muted,
-                fontSize: rs(10, 11, 11, 12),
-                marginBottom: rs(10, 11, 12, 12),
+                color: theme.text,
+                fontSize: rs(22, 24, 26, 28),
+                // Explicit lineHeight (+ a touch of bottom padding) so
+                // the display font's descenders (the "g" in "Gym"/
+                // "Programs") aren't clipped at the bottom edge.
+                lineHeight: rs(28, 30, 32, 34),
+                paddingBottom: rs(2, 3, 3, 4),
               },
             ]}
           >
-            THIS WEEK
+            Gym Programs
           </SPText>
-
-          {!activeInstancePlanId ? (
-            <GymEmptyWeekState variant="noPlan" onPrimaryPress={loadSchedule} />
-          ) : weeklyScheduleLocked ? (
-            <GymEmptyWeekState
-              variant="locked"
-              onPrimaryPress={handleUpgradePress}
-            />
-          ) : (
-            days.map((day, i) => (
-              <Animated.View
-                key={day.dayIndex}
-                entering={FadeIn.duration(280).delay(120 + i * 60)}
-              >
-                <WeeklyDayCard day={day} onStartSession={handleStartSession} />
-              </Animated.View>
-            ))
-          )}
+          <SPText
+            style={[
+              styles.subtitle,
+              { color: theme.muted, fontSize: rs(12, 13, 13, 14) },
+            ]}
+          >
+            Your weekly training schedule.
+          </SPText>
         </View>
-      </ScrollView>
+
+        <Pressable
+          onPress={handleCalendarPress}
+          style={({ pressed }) => [
+            styles.calendarButton,
+            {
+              width: calendarButtonSize,
+              height: calendarButtonSize,
+              borderRadius: calendarButtonSize / 2,
+              borderColor: theme.accentDim,
+            },
+            pressed && { backgroundColor: theme.accentDim },
+          ]}
+        >
+          <Calendar
+            size={rs(16, 18, 19, 20)}
+            color={theme.accent}
+            strokeWidth={1.75}
+          />
+        </Pressable>
+      </Animated.View>
+
+      {hero ? (
+        <Animated.View
+          style={[
+            styles.heroSection,
+            { marginBottom: heroMarginBottom },
+            heroAnimatedStyle,
+          ]}
+        >
+          <GymHeroCard hero={hero} onViewPlan={handleViewPlan} />
+        </Animated.View>
+      ) : null}
+
+      <SPText
+        style={[
+          styles.weekLabel,
+          {
+            color: theme.muted,
+            fontSize: rs(10, 11, 11, 12),
+            marginBottom: rs(10, 11, 12, 12),
+          },
+        ]}
+      >
+        THIS WEEK
+      </SPText>
+    </>
+  );
+
+  const contentPaddingStyle = {
+    paddingHorizontal: contentPaddingH,
+    paddingTop: insets.top + rs(8, 10, 12, 12),
+    paddingBottom: insets.bottom + rs(110, 120, 130, 140),
+  };
+
+  // No plan yet, or the schedule is locked behind a trial/paywall — nothing
+  // to drag, so this stays a plain ScrollView exactly as before.
+  if (!activeInstancePlanId || weeklyScheduleLocked) {
+    return (
+      <View style={[styles.screen, { backgroundColor: theme.bg }]}>
+        <ScrollView
+          contentContainerStyle={[styles.scrollContent, contentPaddingStyle]}
+          showsVerticalScrollIndicator={false}
+        >
+          {headerContent}
+          <View style={styles.weekSection}>
+            {!activeInstancePlanId ? (
+              <GymEmptyWeekState
+                variant="noPlan"
+                onPrimaryPress={loadSchedule}
+              />
+            ) : (
+              <GymEmptyWeekState
+                variant="locked"
+                onPrimaryPress={handleUpgradePress}
+              />
+            )}
+          </View>
+        </ScrollView>
+      </View>
+    );
+  }
+
+  // A DraggableFlatList is itself a scrolling container (built on
+  // FlatList), so it replaces the ScrollView here rather than nesting
+  // inside it — everything that used to sit above the day cards is now
+  // ListHeaderComponent instead.
+  return (
+    <View style={[styles.screen, { backgroundColor: theme.bg }]}>
+      <DraggableFlatList
+        data={days}
+        keyExtractor={(item) => String(item.dayIndex)}
+        renderItem={renderDayCard}
+        onDragEnd={handleDragEnd}
+        ListHeaderComponent={headerContent}
+        contentContainerStyle={[styles.scrollContent, contentPaddingStyle]}
+        showsVerticalScrollIndicator={false}
+        activationDistance={0}
+      />
     </View>
   );
 }

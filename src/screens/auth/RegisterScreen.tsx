@@ -254,11 +254,6 @@ export function RegisterScreen() {
         redirectUrl,
       );
 
-      // TEMP DEBUG — remove once we've confirmed the actual result.type
-      console.log("=== GOOGLE AUTH SESSION RESULT ===");
-      console.log("type:", result.type);
-      console.log("url:", (result as any).url ?? "(none)");
-
       if (result.type !== "success") {
         // User backed out, or the OS foregrounded the app via the deep
         // link before this promise resolved — either way there's nothing

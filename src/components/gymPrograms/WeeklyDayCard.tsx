@@ -1,11 +1,13 @@
 import React, { useState } from "react";
-import { View, Pressable, StyleSheet, LayoutChangeEvent } from "react-native";
+import { View, Pressable, StyleSheet } from "react-native";
 import * as Haptics from "expo-haptics";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
   withTiming,
+  FadeIn,
+  FadeOut,
 } from "react-native-reanimated";
 import { ChevronRight, ChevronDown, Lock } from "lucide-react-native";
 import { SPText } from "../../components/ui/SPText";
@@ -21,16 +23,27 @@ import type { ScheduleDay } from "../../types/gymPrograms";
 interface WeeklyDayCardProps {
   day: ScheduleDay;
   onStartSession: (day: ScheduleDay) => void;
+  // From react-native-draggable-flatlist's renderItem: call to pick this
+  // card up for dragging (wired to onLongPress, so it never conflicts with
+  // the existing tap-to-expand gesture). Omit/leave undefined wherever
+  // dragging shouldn't be possible (e.g. schedule locked, no active plan).
+  drag?: () => void;
+  isActive?: boolean;
+  dragDisabled?: boolean;
 }
 
-export function WeeklyDayCard({ day, onStartSession }: WeeklyDayCardProps) {
+export function WeeklyDayCard({
+  day,
+  onStartSession,
+  drag,
+  isActive = false,
+  dragDisabled = false,
+}: WeeklyDayCardProps) {
   const { rs } = useResponsive();
   const { theme } = useAppTheme();
   const [expanded, setExpanded] = useState(false);
-  const [contentHeight, setContentHeight] = useState(0);
 
   const pressScale = useSharedValue(1);
-  const expandProgress = useSharedValue(0);
   const chevronRotation = useSharedValue(0);
 
   const isLocked = day.isRestDay;
@@ -81,7 +94,6 @@ export function WeeklyDayCard({ day, onStartSession }: WeeklyDayCardProps) {
     }
     const next = !expanded;
     setExpanded(next);
-    expandProgress.value = withTiming(next ? 1 : 0, { duration: 280 });
     chevronRotation.value = withTiming(next ? 1 : 0, { duration: 280 });
   }
 
@@ -89,19 +101,9 @@ export function WeeklyDayCard({ day, onStartSession }: WeeklyDayCardProps) {
     transform: [{ scale: pressScale.value }],
   }));
 
-  const expandAnimatedStyle = useAnimatedStyle(() => ({
-    height: expandProgress.value * contentHeight,
-    opacity: expandProgress.value,
-  }));
-
   const chevronAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ rotate: `${chevronRotation.value * 90}deg` }],
   }));
-
-  function handleMeasure(e: LayoutChangeEvent) {
-    const h = e.nativeEvent.layout.height;
-    if (h > 0 && h !== contentHeight) setContentHeight(h);
-  }
 
   return (
     <Animated.View
@@ -118,12 +120,14 @@ export function WeeklyDayCard({ day, onStartSession }: WeeklyDayCardProps) {
           },
         ],
         isLocked && styles.cardLocked,
+        isActive && styles.cardDragging,
         cardAnimatedStyle,
       ]}
     >
       <Pressable
-        disabled={isLocked}
         onPress={toggleExpand}
+        onLongPress={dragDisabled ? undefined : drag}
+        delayLongPress={220}
         onPressIn={() => {
           if (isLocked) return;
           pressScale.value = withSpring(0.98, GYM_PRESS_SPRING);
@@ -240,27 +244,25 @@ export function WeeklyDayCard({ day, onStartSession }: WeeklyDayCardProps) {
         </View>
       </Pressable>
 
-      {!isLocked ? (
-        <Animated.View style={[styles.expandWrap, expandAnimatedStyle]}>
+      {!isLocked && expanded ? (
+        <Animated.View
+          entering={FadeIn.duration(200)}
+          exiting={FadeOut.duration(150)}
+          style={[
+            styles.expandMeasure,
+            {
+              paddingHorizontal: expandPaddingH,
+              paddingBottom: expandPaddingBottom,
+            },
+          ]}
+        >
           <View
-            style={[
-              styles.expandMeasure,
-              {
-                paddingHorizontal: expandPaddingH,
-                paddingBottom: expandPaddingBottom,
-              },
-            ]}
-            onLayout={handleMeasure}
-            pointerEvents={expanded ? "auto" : "none"}
-          >
-            <View
-              style={[styles.expandDivider, { backgroundColor: theme.border }]}
-            />
-            <ExpandableWorkoutList
-              exercises={day.exercises}
-              onStartSession={() => onStartSession(day)}
-            />
-          </View>
+            style={[styles.expandDivider, { backgroundColor: theme.border }]}
+          />
+          <ExpandableWorkoutList
+            exercises={day.exercises}
+            onStartSession={() => onStartSession(day)}
+          />
         </Animated.View>
       ) : null}
     </Animated.View>
@@ -284,6 +286,14 @@ const styles = StyleSheet.create({
   },
   cardLocked: {
     opacity: 0.55,
+  },
+  cardDragging: {
+    opacity: 0.9,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 10,
   },
   pressableRow: {
     flexDirection: "row",
@@ -343,9 +353,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     // borderColor applied inline from theme.text (+ alpha)
-  },
-  expandWrap: {
-    overflow: "hidden",
   },
   expandMeasure: {
     // horizontal/bottom padding applied responsively inline above

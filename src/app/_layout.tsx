@@ -49,6 +49,7 @@ if (Platform.OS !== "web") {
 async function handleAuthDeepLink(
   url: string,
   router: ReturnType<typeof useRouter>,
+  onUserId?: (id: string) => void,
 ) {
   const parsed = Linking.parse(url);
   const params = parsed.queryParams ?? {};
@@ -71,9 +72,13 @@ async function handleAuthDeepLink(
   let firstName = "Athlete";
   let email = "";
   try {
-    const payload = jwtDecode<{ name?: string; email?: string }>(token);
+    const payload = jwtDecode<{ id?: string; sub?: string; name?: string; email?: string }>(
+      token,
+    );
     firstName = payload.name?.split(" ")[0] ?? "Athlete";
     email = payload.email ?? "";
+    const id = payload.id ?? payload.sub;
+    if (id) onUserId?.(id);
   } catch {
     // Fall back to defaults — welcome screens still render fine.
   }
@@ -218,7 +223,7 @@ export default function RootLayout() {
       const isAuthLink = !!url && url.includes("/auth");
       setLaunchedViaAuthLink(isAuthLink);
       if (isAuthLink && url) {
-        handleAuthDeepLink(url, router);
+        handleAuthDeepLink(url, router, setUserId);
       }
     });
 
@@ -226,7 +231,7 @@ export default function RootLayout() {
     // instead of a fresh process launch.
     const sub = Linking.addEventListener("url", (event) => {
       if (event.url.includes("/auth")) {
-        handleAuthDeepLink(event.url, router);
+        handleAuthDeepLink(event.url, router, setUserId);
       }
     });
     return () => sub.remove();
@@ -282,11 +287,7 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider>
-      <ThemedApp
-        hasToken={hasToken}
-        skipRedirect={launchedViaAuthLink}
-        userId={userId}
-      />
+      <ThemedApp hasToken={hasToken} skipRedirect={launchedViaAuthLink} userId={userId} />
     </ThemeProvider>
   );
 }
