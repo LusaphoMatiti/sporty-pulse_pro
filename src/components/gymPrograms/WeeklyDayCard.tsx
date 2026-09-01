@@ -23,21 +23,20 @@ import type { ScheduleDay } from "../../types/gymPrograms";
 interface WeeklyDayCardProps {
   day: ScheduleDay;
   onStartSession: (day: ScheduleDay) => void;
-  // From react-native-draggable-flatlist's renderItem: call to pick this
-  // card up for dragging (wired to onLongPress, so it never conflicts with
-  // the existing tap-to-expand gesture). Omit/leave undefined wherever
-  // dragging shouldn't be possible (e.g. schedule locked, no active plan).
-  drag?: () => void;
-  isActive?: boolean;
-  dragDisabled?: boolean;
+  // True while THIS card's content is the one currently picked up and
+  // being dragged elsewhere — dims it in place so the fixed day slot
+  // stays visible but visually "empty" until the drag resolves. The
+  // long-press-to-drag gesture itself lives in GymProgramsScreen.tsx,
+  // wrapping this card from outside, since the parent needs to coordinate
+  // across all 7 fixed day rows (measuring drop targets, owning the
+  // floating ghost) rather than any single card managing its own drag.
+  dimmed?: boolean;
 }
 
 export function WeeklyDayCard({
   day,
   onStartSession,
-  drag,
-  isActive = false,
-  dragDisabled = false,
+  dimmed = false,
 }: WeeklyDayCardProps) {
   const { rs } = useResponsive();
   const { theme } = useAppTheme();
@@ -120,14 +119,12 @@ export function WeeklyDayCard({
           },
         ],
         isLocked && styles.cardLocked,
-        isActive && styles.cardDragging,
+        dimmed && styles.cardDimmed,
         cardAnimatedStyle,
       ]}
     >
       <Pressable
         onPress={toggleExpand}
-        onLongPress={dragDisabled ? undefined : drag}
-        delayLongPress={220}
         onPressIn={() => {
           if (isLocked) return;
           pressScale.value = withSpring(0.98, GYM_PRESS_SPRING);
@@ -287,13 +284,8 @@ const styles = StyleSheet.create({
   cardLocked: {
     opacity: 0.55,
   },
-  cardDragging: {
-    opacity: 0.9,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 10,
+  cardDimmed: {
+    opacity: 0.35,
   },
   pressableRow: {
     flexDirection: "row",

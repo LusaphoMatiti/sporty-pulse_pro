@@ -17,22 +17,23 @@ export function GymHeroCard({ hero, onViewPlan }: GymHeroCardProps) {
   const { rs } = useResponsive();
   const { theme } = useAppTheme();
 
-  // Every dimension here was fixed-pixel before, which made this the
-  // single biggest offender on smaller phones (56/44px icon stack + 24px
-  // display text). Scaling per breakpoint brings it in line with the rest
-  // of the (already-responsive) Programs screen.
-  const cardPadding = rs(16, 18, 20, 22);
-  const watermarkSize = rs(70, 82, 92, 100);
-  const iconGlowSize = rs(42, 46, 50, 54);
-  const iconWrapSize = rs(32, 36, 38, 42);
-  const iconSize = rs(18, 20, 22, 24);
-  const splitNameSize = rs(18, 19, 21, 23);
-  const descriptionSize = rs(11, 12, 12, 13);
-  const eyebrowSize = rs(10, 11, 11, 12);
-  const ctaMarginTop = rs(12, 14, 16, 18);
-  const ctaPaddingV = rs(8, 8, 9, 10);
-  const ctaPaddingH = rs(14, 16, 18, 18);
-  const ctaLabelSize = rs(11, 12, 12, 13);
+  // Trimmed down another notch from the previous responsive pass — smaller
+  // padding/icon/text scale across the board so the card takes up less
+  // vertical real estate. The split name no longer clips with numberOfLines,
+  // so long plan names wrap onto a second line instead of being cut off
+  // with "…" — see splitName below.
+  const cardPadding = rs(12, 14, 15, 16);
+  const watermarkSize = rs(54, 62, 70, 76);
+  const iconGlowSize = rs(34, 37, 40, 44);
+  const iconWrapSize = rs(26, 29, 31, 34);
+  const iconSize = rs(14, 16, 17, 19);
+  const splitNameSize = rs(15, 16, 17, 18);
+  const descriptionSize = rs(10, 11, 11, 12);
+  const eyebrowSize = rs(9, 10, 10, 11);
+  const ctaMarginTop = rs(8, 10, 11, 12);
+  const ctaPaddingV = rs(6, 6, 7, 8);
+  const ctaPaddingH = rs(10, 12, 13, 14);
+  const ctaLabelSize = rs(10, 10, 11, 11);
 
   return (
     <View
@@ -100,12 +101,15 @@ export function GymHeroCard({ hero, onViewPlan }: GymHeroCardProps) {
           >
             YOUR SPLIT
           </SPText>
+          {/* numberOfLines removed — a long plan name now wraps to a second
+              line instead of being clipped to "Plan Name…". textCol's
+              flex: 1 plus flexShrink on this text keeps it from pushing
+              into the watermark/icon column. */}
           <SPText
             style={[
               styles.splitName,
               { fontSize: splitNameSize, color: theme.text },
             ]}
-            numberOfLines={1}
           >
             {hero.planName.toUpperCase()}
           </SPText>
@@ -150,7 +154,7 @@ export function GymHeroCard({ hero, onViewPlan }: GymHeroCardProps) {
             VIEW PLAN
           </SPText>
           <ArrowRight
-            size={rs(12, 13, 14, 14)}
+            size={rs(11, 12, 13, 13)}
             color={theme.accent}
             strokeWidth={2}
           />
@@ -201,6 +205,8 @@ const styles = StyleSheet.create({
   splitName: {
     fontFamily: GT.font.display,
     letterSpacing: 0.2,
+    // no numberOfLines cap anymore — long names wrap instead of truncating
+    flexShrink: 1,
     // color applied inline from theme.text
   },
   divider: {
