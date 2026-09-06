@@ -165,21 +165,17 @@ export default function GymProgramsScreen() {
     // id that the real session route needs
     // (/(tabs)/training/session/[instanceId]/[sessionNumber]). Rather than
     // guess at an instance id we don't have, we route through the Training
-    // tab itself and let it resolve instanceId + currentSession from its
-    // own verified /api/training fetch — the same trusted path Home users
-    // already go through via TrainingScreen's handleStartNow().
+    // tab itself and let it resolve instanceId from its own verified
+    // /api/training fetch — the same trusted path Home users already go
+    // through via TrainingScreen's handleStartNow().
     //
-    // Trade-off: this starts whatever /api/training reports as the plan's
-    // *current* session, not necessarily the specific day card the user
-    // tapped (e.g. tapping Friday's card on a Tuesday still starts the
-    // next session in sequence, same as Home's "Start Now"). If you need
-    // strict day-to-session matching instead, that requires confirming
-    // day.sessionNumber always equals the backend's currentSession, and
-    // likely a small TrainingScreen change to accept an explicit session
-    // override — let me know if that's needed and I'll wire it up.
+    // We DO pass the tapped day's sessionNumber explicitly — TrainingScreen's
+    // handleStartNow() prefers sessionNumberParam over data.currentSession,
+    // so this starts the exact day card the user tapped rather than whatever
+    // session the active instance happens to be sitting on.
     router.push({
       pathname: "/(tabs)/training",
-      params: { autoStart: "1" },
+      params: { autoStart: "1", sessionNumber: String(day.sessionNumber) },
     });
   }
 
@@ -256,18 +252,12 @@ export default function GymProgramsScreen() {
   );
 
   const renderDayCard = useCallback(
-    ({ item, drag, isActive }: RenderItemParams<ScheduleDay>) => (
+    ({ item }: RenderItemParams<ScheduleDay>) => (
       <ScaleDecorator>
-        <WeeklyDayCard
-          day={item}
-          onStartSession={handleStartSession}
-          drag={reordering ? undefined : drag}
-          isActive={isActive}
-          dragDisabled={reordering}
-        />
+        <WeeklyDayCard day={item} onStartSession={handleStartSession} />
       </ScaleDecorator>
     ),
-    [reordering],
+    [],
   );
 
   // ─── Responsive values ────────────────────────────────────────────────

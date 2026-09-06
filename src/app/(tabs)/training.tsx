@@ -1,2 +1,2 @@
-import { TrainingScreen } from "../../screens/TrainingScreen";
+import TrainingScreen from "../../screens/TrainingScreen";
 export default TrainingScreen;

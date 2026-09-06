@@ -89,14 +89,6 @@ const IDENTITY_LABEL: Record<Identity, string> = {
   EXECUTIVE_PERFORMANCE: "Exec Perf",
 };
 
-// ─── Training levels ──────────────────────────────────────────────────────────
-
-const TRAINING_LEVELS: { value: UserLevel; label: string; sub: string }[] = [
-  { value: "BEGINNER", label: "Beginner", sub: "0–1 yr" },
-  { value: "INTERMEDIATE", label: "Intermediate", sub: "1–3 yrs" },
-  { value: "ADVANCED", label: "Advanced", sub: "3–6 yrs" },
-];
-
 const CACHE_KEY = "sp_settings_cache";
 
 // ─── PressableScale ───────────────────────────────────────────────────────────
@@ -404,7 +396,6 @@ function EditProfileSheet({
   const { theme } = useAppTheme();
 
   const [name, setName] = useState(user.name ?? "");
-  const [level, setLevel] = useState<UserLevel>(currentLevel);
   const [photoUri, setPhotoUri] = useState<string | null>(user.image);
   const [photoChanged, setPhotoChanged] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -454,19 +445,6 @@ function EditProfileSheet({
       const profileData = await profileRes.json();
       if (!profileRes.ok)
         throw new Error(profileData.error ?? "Failed to save profile");
-
-      const levelRes = await fetch(
-        `${process.env.EXPO_PUBLIC_API_URL ?? ""}/api/user/level`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ level }),
-        },
-      );
-      if (!levelRes.ok) {
-        const d = await levelRes.json().catch(() => ({}));
-        throw new Error(d.error ?? "Failed to update level");
-      }
 
       onSaved(name.trim(), profileData.user?.image ?? null);
       onClose();
@@ -629,75 +607,6 @@ function EditProfileSheet({
                 />
               </View>
 
-              {/* Level picker */}
-              <View
-                style={{ marginBottom: D.space.section, gap: D.space.tight }}
-              >
-                <SPText
-                  style={[
-                    D.type.caption,
-                    {
-                      color: theme.muted,
-                      fontFamily: fonts.brandMedium,
-                      letterSpacing: 1,
-                      textTransform: "uppercase",
-                      paddingHorizontal: D.space.micro,
-                    },
-                  ]}
-                >
-                  Training Level
-                </SPText>
-                <View style={{ flexDirection: "row", gap: D.space.tight }}>
-                  {TRAINING_LEVELS.map((l) => {
-                    const sel = level === l.value;
-                    return (
-                      <PressableScale
-                        key={l.value}
-                        onPress={() => {
-                          setLevel(l.value);
-                          Haptics.impactAsync(
-                            Haptics.ImpactFeedbackStyle.Light,
-                          );
-                        }}
-                        style={{ flex: 1 }}
-                      >
-                        <View
-                          style={[
-                            sheetStyles.levelCard,
-                            {
-                              backgroundColor: sel
-                                ? theme.accentDim
-                                : theme.surface2,
-                              borderColor: sel
-                                ? theme.accent + "40"
-                                : theme.border,
-                            },
-                          ]}
-                        >
-                          <SPText
-                            numberOfLines={1}
-                            style={[
-                              D.type.subtext,
-                              {
-                                fontFamily: fonts.brandBold,
-                                color: sel ? theme.accent : theme.muted2,
-                              },
-                            ]}
-                          >
-                            {l.label}
-                          </SPText>
-                          <SPText
-                            style={[D.type.caption, { color: theme.muted }]}
-                          >
-                            {l.sub}
-                          </SPText>
-                        </View>
-                      </PressableScale>
-                    );
-                  })}
-                </View>
-              </View>
-
               {error ? (
                 <SPText
                   style={[
@@ -796,18 +705,6 @@ const sheetStyles = StyleSheet.create({
     borderRadius: D.input.borderRadius,
     paddingHorizontal: D.space.std,
     fontSize: D.type.body.fontSize,
-  },
-  levelCard: {
-    borderRadius: D.radius.sm,
-    borderWidth: 1,
-    padding: D.space.std,
-    gap: D.space.micro,
-    // Fixed height (reusing the existing row token) so all three cards
-    // match regardless of label length -- "Intermediate" is long enough
-    // to wrap onto a second line at this width, which was stretching just
-    // that card taller than "Beginner"/"Advanced" beside it.
-    height: D.row.height,
-    justifyContent: "center",
   },
 });
 
@@ -1135,38 +1032,35 @@ export function SettingsScreen() {
 
         {/* ── Profile Card ── */}
         <Animated.View entering={FadeIn.duration(220).delay(40)}>
-          <PressableScale onPress={() => setEditSheetOpen(true)}>
-            <View
-              style={[
-                mainStyles.profileCard,
-                { backgroundColor: theme.surface, borderColor: theme.border },
-              ]}
-            >
-              <Avatar user={user} size={56} />
-              <View style={{ flex: 1, gap: 2 }}>
-                <SPText
-                  style={[
-                    D.type.body,
-                    {
-                      color: theme.text,
-                      fontFamily: fonts.brandBold,
-                      fontSize: 18,
-                    },
-                  ]}
-                  numberOfLines={1}
-                >
-                  {user.name ?? "Athlete"}
-                </SPText>
-                <SPText
-                  style={[D.type.caption, { color: theme.muted2 }]}
-                  numberOfLines={1}
-                >
-                  {user.email ?? "Manage your account and preferences"}
-                </SPText>
-              </View>
-              <SPIcon name="forward" size={18} color={theme.muted} />
+          <View
+            style={[
+              mainStyles.profileCard,
+              { backgroundColor: theme.surface, borderColor: theme.border },
+            ]}
+          >
+            <Avatar user={user} size={56} />
+            <View style={{ flex: 1, gap: 2 }}>
+              <SPText
+                style={[
+                  D.type.body,
+                  {
+                    color: theme.text,
+                    fontFamily: fonts.brandBold,
+                    fontSize: 18,
+                  },
+                ]}
+                numberOfLines={1}
+              >
+                {user.name ?? "Athlete"}
+              </SPText>
+              <SPText
+                style={[D.type.caption, { color: theme.muted2 }]}
+                numberOfLines={1}
+              >
+                {user.email ?? "Manage your account and preferences"}
+              </SPText>
             </View>
-          </PressableScale>
+          </View>
         </Animated.View>
 
         {/* ── Edit Profile + Training System ── */}

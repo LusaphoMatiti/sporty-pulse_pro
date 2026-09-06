@@ -2366,7 +2366,17 @@ export function OnboardingScreen() {
         payload,
       );
       if (!res?.ok) throw new Error(res?.error ?? "Something went wrong");
-      router.replace("/(tabs)" as any);
+
+      // ── NEW: Store the training location ──
+      await AsyncStorage.setItem(
+        "user_training_location",
+        answers.trainingLocation,
+      );
+
+      // Always route to the programs tab — ProgramsScreen itself branches on
+      // trainingLocation and renders GymProgramsScreen for GYM users, so this
+      // single destination correctly serves both paths.
+      router.replace("/(tabs)/home" as any);
     } catch (e: any) {
       setError(e?.message ?? "Something went wrong");
     } finally {

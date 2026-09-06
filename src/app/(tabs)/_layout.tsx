@@ -1,10 +1,11 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { View, StyleSheet } from "react-native";
 import { Tabs, useRouter, useSegments } from "expo-router";
 import { SPTabBar, type TabKey } from "../../components/ui/SPTabBar";
 import { useAppTheme } from "../../theme/ThemeContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { CACHE_KEYS } from "../../lib/cacheKeys";
+import { api } from "../../lib/api";
 
 function getActiveTab(segments: string[]): TabKey {
   const last = segments[segments.length - 1];
@@ -28,13 +29,42 @@ export default function TabLayout() {
   const segments = useSegments();
   const activeTab = getActiveTab(segments);
   const hideTabBar = isSessionScreen(segments);
-  // FIX: this used to be `colors.void` from a static "../../theme" import —
-  // a plain object resolved once at import time, with no connection to
-  // ThemeContext. It never updated with isDark, which is why the root
-  // background stayed black regardless of theme mode. useAppTheme() reads
-  // the live context, so theme.void now actually switches between
-  // darkTheme.void ("#0A0A0A") and lightTheme.void ("#F0F2F5").
   const { theme } = useAppTheme();
+
+  // ── Redirect GYM users to programs tab ────────────────────────────
+  useEffect(() => {
+    // Only run this check once on mount, and only if we're on the home tab
+    if (activeTab === "home" && !segments.includes("session")) {
+      const checkUserLocation = async () => {
+        try {
+          // Get the user's training location from AsyncStorage
+          const location = await AsyncStorage.getItem("user_training_location");
+
+          if (location === "GYM") {
+            // Redirect GYM users to the programs tab
+            router.replace("/(tabs)/programs" as any);
+          } else {
+            // Also check from API if not in storage
+            try {
+              const response = await api.get<{ trainingLocation?: string }>(
+                "/api/user/training-location",
+              );
+              if (response?.trainingLocation === "GYM") {
+                await AsyncStorage.setItem("user_training_location", "GYM");
+                router.replace("/(tabs)/programs" as any);
+              }
+            } catch {
+              // ignore API error
+            }
+          }
+        } catch {
+          // ignore storage error
+        }
+      };
+
+      checkUserLocation();
+    }
+  }, []);
 
   const handleTrainingPress = async () => {
     try {
@@ -59,10 +89,6 @@ export default function TabLayout() {
 
   return (
     <View style={[styles.root, { backgroundColor: theme.void }]}>
-      {/*
-        Tabs now fills the entire root — no sibling wrapper carving out
-        space above the bar. Screen content extends full-bleed behind it.
-      */}
       <Tabs screenOptions={{ headerShown: false }} tabBar={() => null}>
         <Tabs.Screen name="index" />
         <Tabs.Screen name="training" />
@@ -71,17 +97,6 @@ export default function TabLayout() {
         <Tabs.Screen name="settings" />
       </Tabs>
 
-      {/*
-        SPTabBar is absolutely positioned over the content instead of
-        occupying its own row, so it floats on top of whatever is
-        scrolling underneath rather than reserving its own footprint.
-        pointerEvents="box-none" lets touches pass through the empty
-        margin area around the bar to the content below, while the
-        bar itself (and its buttons) still receives touches normally.
-        Hidden entirely on the session screen — mid-workout shouldn't
-        expose a way to tab away, and the bar would just sit on top of
-        the session UI's own controls.
-      */}
       {!hideTabBar && (
         <View style={styles.floatingTabBar} pointerEvents="box-none">
           <SPTabBar

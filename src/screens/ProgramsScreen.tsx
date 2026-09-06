@@ -93,7 +93,8 @@ type LockReason =
   | "cap_reached"
   | "equipment_required"
   | "upgrade_required"
-  | "no_equipment_match";
+  | "no_equipment_match"
+  | "unknown";
 type UserLevel = "BEGINNER" | "INTERMEDIATE" | "ADVANCED";
 type Identity = "REBUILD" | "OPERATOR" | "EXECUTIVE_PERFORMANCE";
 
@@ -283,6 +284,7 @@ const LOCK_LABEL: Record<LockReason, string> = {
   equipment_required: "Equipment required",
   upgrade_required: "Pro required",
   no_equipment_match: "Different gear needed",
+  unknown: "Locked",
 };
 
 // computePlanLocks (lib/programaccess.ts) only ever returns trial_expired,
@@ -292,12 +294,15 @@ const LOCK_LABEL: Record<LockReason, string> = {
 // messaging rather than crashing on an unmapped trigger.
 function toUpgradeTrigger(reason: LockReason): UpgradeTrigger {
   if (reason === "no_equipment_match") return "upgrade_required";
+  if (reason === "unknown") return "upgrade_required";
   return reason;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function getLockReason(plan: WorkoutPlan): LockReason | null {
+  if (!plan.locked) return null;
+  // If lockReason is null or undefined, default to "upgrade_required"
   return plan.locked ? plan.lockReason : null;
 }
 
@@ -1399,7 +1404,7 @@ function LockedProgramCard({
                 ]}
               >
                 <SPText style={[pc.catText, { color: theme.muted }]}>
-                  {LOCK_LABEL[reason].toUpperCase()}
+                  {LOCK_LABEL[reason]?.toUpperCase() ?? "LOCKED"}
                 </SPText>
               </View>
               <View style={pc.spacer} />
@@ -1875,7 +1880,7 @@ export function ProgramsScreen() {
   // GYM users get the dedicated weekly-schedule screen instead of this
   // catalog view. HOME users (and GYM users before onboarding data has
   // synced) fall through to everything below, unchanged.
-  if (data?.trainingLocation === "GYM") {
+  if (data?.trainingLocation === "GYM" || data?.access?.activePlanId) {
     return <GymProgramsScreen />;
   }
 

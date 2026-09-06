@@ -116,13 +116,14 @@ interface ExerciseForView {
   };
 }
 
-interface ProgramStub {
+export interface ProgramStub {
   id: string;
   name: string;
   description: string;
   coachingNote?: string | null;
   tier: string;
   muscleGroup: string;
+  collection: string | null;
   durationWeeks: number;
   sessionsPerWeek: number;
   imageUrl: string | null;
@@ -155,7 +156,7 @@ type WeightMap = Record<string, number | "">;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const MUSCLE_LABEL: Record<string, string> = {
+export const MUSCLE_LABEL: Record<string, string> = {
   FULLBODY: "Full Body",
   UPPER: "Upper Body",
   LOWER: "Lower Body",
@@ -258,7 +259,7 @@ const tabStyles = StyleSheet.create({
 
 // ─── Programs Tab ─────────────────────────────────────────────────────────────
 
-const LEVELS: {
+export const LEVELS: {
   key: "BEGINNER" | "INTERMEDIATE" | "ADVANCED";
   label: string;
   description: string;
@@ -299,10 +300,6 @@ function ProgramsTab({
 }) {
   const { theme, isDark } = useAppTheme();
   const router = useRouter();
-  // This tab renders its own ScrollView directly under the floating
-  // SPTabBar (it's not nested inside another scroll container), so it
-  // needs to reserve the bar's real height itself or the last card
-  // renders underneath it.
   const tabBarHeight = useTabBarHeight();
 
   const { planId, allPrograms, tier, activeEquipmentIds = [] } = data;
@@ -310,10 +307,6 @@ function ProgramsTab({
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
 
   function isProgramLocked(program: ProgramStub): boolean {
-    // "Other Programs" carousel is strictly Pro-gated: any non-Pro user
-    // sees every card here locked, regardless of their equipment trial or
-    // purchase status (those only affect the Programs Screen's own access
-    // model in lib/programaccess.ts, not this teaser strip).
     return !isPro;
   }
 
@@ -356,7 +349,6 @@ function ProgramsTab({
                 />
               )}
 
-              {/* Subtle bottom gradient scrim for legibility */}
               <View style={programStyles.heroScrim} pointerEvents="none" />
 
               <View
@@ -404,7 +396,6 @@ function ProgramsTab({
               </View>
             </View>
 
-            {/* Metadata row — sits below the image, on surface */}
             <View
               style={[
                 programStyles.heroMetaRow,
@@ -499,7 +490,6 @@ function ProgramsTab({
               </View>
             </View>
 
-            {/* ── Insight Card ── */}
             {!!activeProgram.coachingNote && (
               <View
                 style={[
@@ -784,7 +774,6 @@ function ProgramsTab({
           </View>
         )}
 
-        {/* ── Sticky-feel CTA (inline, end of scroll) ── */}
         <View style={programStyles.ctaWrap}>
           <SPButton variant="primary" onPress={onStartNow}>
             Start Program
@@ -913,10 +902,6 @@ const programStyles = StyleSheet.create({
     gap: rs(spacing[3]),
   },
   sessionThumb: {
-    // 4:3 to match the `thumb` Cloudinary preset (200x150) used in
-    // /api/training for exercisesForView[].exercise.thumbnailUrl — the same
-    // field also feeds `exerciseThumb` below at a 150:110 (4:3) ratio, so
-    // this box needs to match that ratio rather than be square.
     width: rs(106),
     height: rs(80),
     borderRadius: rs(16),
@@ -985,8 +970,8 @@ const LIBRARY_MUSCLES = [
   { label: "Back", count: 15 },
   { label: "Shoulders", count: 10 },
   { label: "Arms", count: 14 },
-  { label: "Legs", count: 11 },
   { label: "Core", count: 9 },
+  { label: "Legs", count: 11 },
 ];
 
 const LIBRARY_COLLECTIONS = [
@@ -995,11 +980,52 @@ const LIBRARY_COLLECTIONS = [
   { label: "Core Performance", count: 10 },
 ];
 
+// Bookmark badge — swapped per theme (light: #C8F135, dark: #55CC88).
+// Adjust these paths to wherever the two PNGs live in your project.
+const bookmarkLight = require("../../assets/images/Bookmark_Logo__(Darkmode).png");
+
+// "../../assets/images/Bookmark_Logo.png"
+// "../../assets/images/Bookmark_Logo__(Darkmode).png"
+const bookmarkDark = require("../../assets/images/Bookmark_Logo.png");
+
+// Muscle group icons for "Browse by muscle" — swapped per theme
+// (light: #C8F135, dark: #55CC88). Adjust paths to match your project.
+const chestLight = require("../assets/images/Chest_Logo__Darkmode_.png");
+
+const chestDark = require("../assets/images/Chest_Logo.png");
+const backLight = require("../assets/images/Back_Logo__(Darkmode).png");
+const backDark = require("../assets/images/Back_Logo.png");
+const shoulderLight = require("../assets/images/Shoulder_Logo__Darkmode_.png");
+
+// "../assets/images/Shoulder_Logo.png"
+
+const shoulderDark = require("../assets/images/Shoulder_Logo.png");
+const armLight = require("../assets/images/Arm_Logo__Darkmode_.png");
+const armDark = require("../assets/images/Arm_Logo.png");
+
+//
+
+const legLight = require("../assets/images/Leg_Logo__Darkmode_.png");
+const legDark = require("../assets/images/Leg_Logo.png");
+
+const coreLight = require("../assets/images/Chest_Logo__Darkmode_.png");
+const coreDark = require("../assets/images/Core_Logo.png");
+
+// Keyed by the exact labels used in LIBRARY_MUSCLES. "Core" has no icon
+// yet, so it keeps falling back to the plain accent-colored block below.
+const MUSCLE_ICONS: Record<string, { light: number; dark: number }> = {
+  Chest: { light: chestLight, dark: chestDark },
+  Back: { light: backLight, dark: backDark },
+  Shoulders: { light: shoulderLight, dark: shoulderDark },
+  Arms: { light: armLight, dark: armDark },
+  Core: { light: coreLight, dark: coreDark },
+  Legs: { light: legLight, dark: legDark },
+};
+
 function LibraryTab({ data }: { data: TrainingData }) {
-  const { theme } = useAppTheme();
-  // Same story as ProgramsTab — this is the actual content scrolling
-  // behind the floating SPTabBar, and it had no bottom padding at all.
+  const { theme, isDark } = useAppTheme();
   const tabBarHeight = useTabBarHeight();
+  const router = useRouter();
 
   return (
     <ScrollView
@@ -1011,7 +1037,9 @@ function LibraryTab({ data }: { data: TrainingData }) {
           <SPText style={[libStyles.sectionTitle, { color: theme.text }]}>
             Current Exercises
           </SPText>
-          <Pressable>
+          <Pressable
+            onPress={() => router.push("/(tabs)/training/exercises" as any)}
+          >
             <SPText
               style={{
                 color: theme.accent,
@@ -1051,11 +1079,10 @@ function LibraryTab({ data }: { data: TrainingData }) {
                     transition={200}
                   />
                 ) : null}
-                <View
-                  style={[
-                    libStyles.bookmark,
-                    { backgroundColor: theme.accent },
-                  ]}
+                <Image
+                  source={isDark ? bookmarkDark : bookmarkLight}
+                  style={libStyles.bookmark}
+                  contentFit="contain"
                 />
               </View>
               <View style={libStyles.exerciseCardBody}>
@@ -1089,7 +1116,9 @@ function LibraryTab({ data }: { data: TrainingData }) {
           <SPText style={[libStyles.sectionTitle, { color: theme.text }]}>
             Browse by muscle
           </SPText>
-          <Pressable>
+          <Pressable
+            onPress={() => router.push("/(tabs)/training/muscles" as any)}
+          >
             <SPText
               style={{
                 color: theme.accent,
@@ -1108,42 +1137,53 @@ function LibraryTab({ data }: { data: TrainingData }) {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ gap: rs(spacing[3]) }}
           keyExtractor={(m) => m.label}
-          renderItem={({ item: m }) => (
-            <Pressable
-              style={[
-                libStyles.muscleCard,
-                { backgroundColor: theme.surface, borderColor: theme.border },
-              ]}
-            >
-              <View
+          renderItem={({ item: m }) => {
+            const icon = MUSCLE_ICONS[m.label];
+            return (
+              <Pressable
                 style={[
-                  libStyles.muscleIllustration,
-                  { backgroundColor: "#111" },
+                  libStyles.muscleCard,
+                  { backgroundColor: theme.surface, borderColor: theme.border },
                 ]}
               >
                 <View
                   style={[
-                    libStyles.muscleHighlight,
-                    { backgroundColor: theme.accent, opacity: 0.7 },
+                    libStyles.muscleIllustration,
+                    { backgroundColor: "#111" },
                   ]}
-                />
-              </View>
-              <View style={libStyles.muscleCardFooter}>
-                <SPText
-                  style={{
-                    color: theme.text,
-                    fontSize: rf(13),
-                    fontFamily: fonts.brandBold,
-                  }}
                 >
-                  {m.label}
-                </SPText>
-                <SPText style={{ color: theme.muted, fontSize: rf(11) }}>
-                  {m.count} Exercises
-                </SPText>
-              </View>
-            </Pressable>
-          )}
+                  {icon ? (
+                    <Image
+                      source={isDark ? icon.dark : icon.light}
+                      style={libStyles.muscleHighlight}
+                      contentFit="contain"
+                    />
+                  ) : (
+                    <View
+                      style={[
+                        libStyles.muscleHighlight,
+                        { backgroundColor: theme.accent, opacity: 0.7 },
+                      ]}
+                    />
+                  )}
+                </View>
+                <View style={libStyles.muscleCardFooter}>
+                  <SPText
+                    style={{
+                      color: theme.text,
+                      fontSize: rf(13),
+                      fontFamily: fonts.brandBold,
+                    }}
+                  >
+                    {m.label}
+                  </SPText>
+                  <SPText style={{ color: theme.muted, fontSize: rf(11) }}>
+                    {m.count} Exercises
+                  </SPText>
+                </View>
+              </Pressable>
+            );
+          }}
         />
       </View>
 
@@ -1152,7 +1192,9 @@ function LibraryTab({ data }: { data: TrainingData }) {
           <SPText style={[libStyles.sectionTitle, { color: theme.text }]}>
             Collections
           </SPText>
-          <Pressable>
+          <Pressable
+            onPress={() => router.push("/(tabs)/training/collections" as any)}
+          >
             <SPText
               style={{
                 color: theme.accent,
@@ -1243,12 +1285,12 @@ const libStyles = StyleSheet.create({
   },
   bookmark: {
     position: "absolute",
-    top: 0,
+    top: rs(6),
     right: rs(spacing[3]),
-    width: rs(20),
-    height: rs(28),
-    borderBottomLeftRadius: rs(4),
-    borderBottomRightRadius: rs(4),
+    width: rs(24),
+    height: rs(24),
+    borderRadius: rs(6),
+    overflow: "hidden",
   },
   exerciseCardBody: {
     padding: rs(spacing[3]),
@@ -1266,9 +1308,10 @@ const libStyles = StyleSheet.create({
     justifyContent: "center",
   },
   muscleHighlight: {
-    width: rs(50),
-    height: rs(70),
+    width: rs(32),
+    height: rs(32),
     borderRadius: rs(radii.sm),
+    overflow: "hidden",
   },
   muscleCardFooter: {
     padding: rs(spacing[3]),
@@ -1303,7 +1346,7 @@ const libStyles = StyleSheet.create({
 
 // ─── Switch Program Modal ─────────────────────────────────────────────────────
 
-function SwitchProgramModal({
+export function SwitchProgramModal({
   program,
   selectedLevel,
   onLevelChange,
@@ -1445,7 +1488,7 @@ function SwitchProgramModal({
   );
 }
 
-// ─── Weight Sheet ─────────────────────────────────────────────────────────────
+// ─── Weight Input Sheet ─────────────────────────────────────────────────────
 
 function WeightInputSheet({
   exercises,
@@ -1678,7 +1721,7 @@ const modalStyles = StyleSheet.create({
 
 // ─── Main TrainingScreen ──────────────────────────────────────────────────────
 
-export function TrainingScreen() {
+export default function TrainingScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { theme } = useAppTheme();
@@ -1694,6 +1737,16 @@ export function TrainingScreen() {
   >("BEGINNER");
   const [switching, setSwitching] = useState(false);
   const [noPlan, setNoPlan] = useState(false);
+
+  // Get session number from URL params — GymProgramsScreen's "Start
+  // Session" tap passes this so we show the tapped day's session, not
+  // necessarily the active instance's currentSession.
+  const { sessionNumber: sessionNumberParam } = useLocalSearchParams<{
+    sessionNumber?: string;
+  }>();
+
+  // Store the target session number in a ref so we can use it across renders
+  const targetSessionRef = useRef<number | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -1719,7 +1772,6 @@ export function TrainingScreen() {
           setWeights(base);
           setNoPlan(false);
           setLoading(false);
-          // Keep thumbnail map fresh so SessionScreen can read it immediately
           const thumbMap: Record<string, string> = {};
           for (const e of parsed.exercisesForView) {
             if (e.exercise.thumbnailUrl)
@@ -1742,7 +1794,9 @@ export function TrainingScreen() {
 
     try {
       const raw = await api.get<{ success: boolean; data: TrainingData }>(
-        "/api/training",
+        sessionNumberParam
+          ? `/api/training?sessionNumber=${encodeURIComponent(sessionNumberParam)}`
+          : "/api/training",
       );
       const d: TrainingData | null = (raw?.data as TrainingData) ?? null;
       if (!d?.instanceId) {
@@ -1767,7 +1821,6 @@ export function TrainingScreen() {
       setLoading(false);
       await AsyncStorage.setItem(CACHE_KEYS.training, JSON.stringify(d));
 
-      // Write exercise thumbnail map for SessionScreen to consume
       const thumbMap: Record<string, string> = {};
       for (const e of d.exercisesForView) {
         if (e.exercise.thumbnailUrl)
@@ -1788,7 +1841,7 @@ export function TrainingScreen() {
     } catch {
       setLoading(false);
     }
-  }, []);
+  }, [sessionNumberParam]);
 
   useFocusEffect(
     useCallback(() => {
@@ -1796,7 +1849,7 @@ export function TrainingScreen() {
     }, [fetchData]),
   );
 
-  // ── Redirect when no plan — hooks must be declared before any early return ──
+  // ── Redirect when no plan ──
   useEffect(() => {
     if (!loading && noPlan) {
       router.replace("/(tabs)/programs" as any);
@@ -1822,35 +1875,49 @@ export function TrainingScreen() {
 
   const handleStartNow = useCallback(() => {
     if (!data) return;
+
+    // Use the session number from URL params, or fall back to currentSession
+    const targetSession = sessionNumberParam
+      ? Number(sessionNumberParam)
+      : data.currentSession;
+
+    // Store it for later use
+    targetSessionRef.current = targetSession;
+
     const weightedExercises = data.exercisesForView.filter(
       (e) => e.id in weights,
     );
+
     if (weightedExercises.length > 0) {
       setShowWeightSheet(true);
     } else {
+      // Navigate directly to the specific session
       router.push(
-        `/(tabs)/training/session/${data.instanceId}/${data.currentSession}` as any,
+        `/(tabs)/training/session/${data.instanceId}/${targetSession}` as any,
       );
     }
-  }, [data, weights, router]);
+  }, [data, weights, router, sessionNumberParam]);
 
   const handleConfirmStart = useCallback(() => {
     if (!data) return;
     setShowWeightSheet(false);
+
+    // Use the stored target session, or fall back to currentSession
+    const targetSession = targetSessionRef.current ?? data.currentSession;
+    targetSessionRef.current = null;
+
     router.push(
-      `/(tabs)/training/session/${data.instanceId}/${data.currentSession}` as any,
+      `/(tabs)/training/session/${data.instanceId}/${targetSession}` as any,
     );
   }, [data, router]);
 
-  const { autoStart } = useLocalSearchParams<{ autoStart?: string }>();
-  const didAutoStart = useRef(false);
-
+  // Reset the stored target session when navigating away, so a stale
+  // value can't leak into a later manual "Start Program" tap.
   useEffect(() => {
-    if (autoStart === "1" && !loading && data && !didAutoStart.current) {
-      didAutoStart.current = true;
-      handleStartNow();
-    }
-  }, [autoStart, loading, data, handleStartNow]);
+    return () => {
+      targetSessionRef.current = null;
+    };
+  }, []);
 
   // ── Loading skeleton ──
   if (loading) {
@@ -1895,12 +1962,10 @@ export function TrainingScreen() {
     );
   }
 
-  // ── No plan — show blank while redirect fires ──
+  // ── No plan ──
   if (noPlan || !data) {
     return <View style={[styles.fill, { backgroundColor: theme.bg }]} />;
   }
-
-  const { planName, muscleGroup, tier, trialExpiresAt } = data;
 
   return (
     <View style={[styles.fill, { backgroundColor: theme.bg }]}>
