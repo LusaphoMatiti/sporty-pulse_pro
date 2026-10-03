@@ -2373,10 +2373,13 @@ export function OnboardingScreen() {
         answers.trainingLocation,
       );
 
-      // Always route to the programs tab — ProgramsScreen itself branches on
-      // trainingLocation and renders GymProgramsScreen for GYM users, so this
-      // single destination correctly serves both paths.
-      router.replace("/(tabs)/home" as any);
+      // One-time flag: tells (tabs)/_layout.tsx not to auto-redirect GYM
+      // users to Programs on this first Home mount after onboarding.
+      await AsyncStorage.setItem("skip_gym_redirect_once", "1");
+
+      // Land on Home for everyone. From Home, ProgramsScreen forks on
+      // trainingLocation (GymProgramsScreen for GYM users).
+      router.replace("/(tabs)" as any);
     } catch (e: any) {
       setError(e?.message ?? "Something went wrong");
     } finally {

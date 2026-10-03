@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, ScrollView, StyleSheet, ActivityIndicator } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -13,10 +13,6 @@ import Animated, {
 import { Calendar } from "lucide-react-native";
 import { Pressable } from "react-native";
 import * as Haptics from "expo-haptics";
-import DraggableFlatList, {
-  RenderItemParams,
-  ScaleDecorator,
-} from "react-native-draggable-flatlist";
 
 import { SPText } from "../components/ui/SPText";
 import { api, reorderWeeklySchedule } from "../lib/api";
@@ -77,6 +73,11 @@ export default function GymProgramsScreen() {
   // until that request settles — prevents two overlapping swaps racing
   // each other's optimistic state.
   const [reordering, setReordering] = useState(false);
+  // Measuring wrappers, one per day slot, used on drop to find which slot
+  // the finger landed in. Scroll is locked while a workout is being dragged.
+  const cardRefs = useRef<Record<number, View | null>>({});
+  const [scrollEnabled, setScrollEnabled] = useState(true);
+  const [draggingDayIndex, setDraggingDayIndex] = useState<number | null>(null);
 
   const heroTranslateY = useSharedValue(24);
   const heroOpacity = useSharedValue(0);
@@ -190,35 +191,69 @@ export default function GymProgramsScreen() {
 
   function handleUpgradePress() {
     // Hook point — wire to your existing paywall/subscribe screen.
-    router.push("/upgrade" as any);
+    router.push("/pricing" as any);
   }
 
-  // Applies a real shift-based reorder: dragging one day onto another
-  // shifts everything in between by one, exactly like any normal
-  // drag-reorder list — not a two-item-only swap. `data` is the library's
-  // own already-correctly-reordered array; we only ever take its content
-  // fields, never its day-identity fields (dayIndex/dayLabel/dayAbbrev/
-  // isToday/difficulty), which stay pinned to position — position 0 is
-  // always Monday, position 6 is always Sunday, regardless of which
-  // session's content is currently sitting there. Optimistic: applies
+  // Days never move: position 0 is always Monday, position 6 is always
+  // Sunday, and the day label / TODAY badge stay put. Only the workout
+  // (content) is dragged. On drop, WeeklyDayCard reports the finger's
+  // window Y; we measure every slot's on-screen rect, find which slot the
+  // finger landed in, and shift the workouts between source and target by
+  // one (a normal drag-reorder, not a two-item swap). dayIndex/dayLabel/
+  // dayAbbrev/isToday/difficulty are never touched. Optimistic: applies
   // locally immediately, then persists, rolling back if the request fails.
-  const handleDragEnd = useCallback(
-    async ({ data }: { data: ScheduleDay[] }) => {
+  const handleDropAt = useCallback(
+    async (sourceDay: ScheduleDay, dropAbsoluteY: number) => {
       if (!activeInstanceId || reordering) return;
 
       const previousDays = days;
+      const sourceIdx = previousDays.findIndex(
+        (d) => d.dayIndex === sourceDay.dayIndex,
+      );
+      if (sourceIdx === -1) return;
+
+      const rects = await Promise.all(
+        previousDays.map(
+          (d) =>
+            new Promise<{ top: number; bottom: number } | null>((resolve) => {
+              const node = cardRefs.current[d.dayIndex];
+              if (!node) return resolve(null);
+              node.measureInWindow((_x, y, _w, h) =>
+                resolve({ top: y, bottom: y + h }),
+              );
+            }),
+        ),
+      );
+
+      let targetIdx = rects.findIndex(
+        (r) => !!r && dropAbsoluteY >= r.top && dropAbsoluteY <= r.bottom,
+      );
+      if (targetIdx === -1) {
+        const firstTop = rects[0]?.top;
+        targetIdx =
+          firstTop !== undefined && dropAbsoluteY < firstTop
+            ? 0
+            : previousDays.length - 1;
+      }
+      if (targetIdx === sourceIdx) return;
+
+      const contents = previousDays.map((d) => ({
+        sessionNumber: d.sessionNumber,
+        focus: d.focus,
+        estimatedMinutes: d.estimatedMinutes,
+        exercises: d.exercises,
+        isRestDay: d.isRestDay,
+        plannedSessionId: d.plannedSessionId,
+      }));
+      const [moved] = contents.splice(sourceIdx, 1);
+      contents.splice(targetIdx, 0, moved);
 
       const nextDays = previousDays.map((day, i) => ({
         ...day,
-        sessionNumber: data[i].sessionNumber,
-        focus: data[i].focus,
-        estimatedMinutes: data[i].estimatedMinutes,
-        exercises: data[i].exercises,
-        isRestDay: data[i].isRestDay,
-        plannedSessionId: data[i].plannedSessionId,
+        ...contents[i],
       }));
 
-      // No-op drag (dropped back where it started) — skip the network call.
+      // Dropped somewhere that results in the same arrangement — skip.
       const unchanged = nextDays.every(
         (d, i) => d.plannedSessionId === previousDays[i].plannedSessionId,
       );
@@ -249,15 +284,6 @@ export default function GymProgramsScreen() {
       }
     },
     [activeInstanceId, days, reordering],
-  );
-
-  const renderDayCard = useCallback(
-    ({ item }: RenderItemParams<ScheduleDay>) => (
-      <ScaleDecorator>
-        <WeeklyDayCard day={item} onStartSession={handleStartSession} />
-      </ScaleDecorator>
-    ),
-    [],
   );
 
   // ─── Responsive values ────────────────────────────────────────────────
@@ -394,22 +420,45 @@ export default function GymProgramsScreen() {
     );
   }
 
-  // A DraggableFlatList is itself a scrolling container (built on
-  // FlatList), so it replaces the ScrollView here rather than nesting
-  // inside it — everything that used to sit above the day cards is now
-  // ListHeaderComponent instead.
+  // Plain ScrollView: each WeeklyDayCard drags only its own workout content
+  // (the day label column is outside the draggable area) and reports the
+  // drop via onDropAt. Scroll is locked while a drag is active, and the
+  // dragged slot is raised above its siblings so it renders on top.
   return (
     <View style={[styles.screen, { backgroundColor: theme.bg }]}>
-      <DraggableFlatList
-        data={days}
-        keyExtractor={(item) => String(item.dayIndex)}
-        renderItem={renderDayCard}
-        onDragEnd={handleDragEnd}
-        ListHeaderComponent={headerContent}
+      <ScrollView
         contentContainerStyle={[styles.scrollContent, contentPaddingStyle]}
         showsVerticalScrollIndicator={false}
-        activationDistance={0}
-      />
+        scrollEnabled={scrollEnabled}
+      >
+        {headerContent}
+        <View style={styles.weekSection}>
+          {days.map((day) => (
+            <View
+              key={day.dayIndex}
+              ref={(node) => {
+                cardRefs.current[day.dayIndex] = node;
+              }}
+              collapsable={false}
+              style={
+                draggingDayIndex === day.dayIndex
+                  ? { zIndex: 50, elevation: 14 }
+                  : undefined
+              }
+            >
+              <WeeklyDayCard
+                day={day}
+                onStartSession={handleStartSession}
+                onDragActiveChange={(active) => {
+                  setScrollEnabled(!active);
+                  setDraggingDayIndex(active ? day.dayIndex : null);
+                }}
+                onDropAt={handleDropAt}
+              />
+            </View>
+          ))}
+        </View>
+      </ScrollView>
     </View>
   );
 }

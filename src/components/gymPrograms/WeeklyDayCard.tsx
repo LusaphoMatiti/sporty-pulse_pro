@@ -220,7 +220,7 @@ export const WeeklyDayCard = forwardRef<View, WeeklyDayCardProps>(
           wrapperAnimatedStyle,
         ]}
       >
-        <View
+        <Animated.View
           style={[
             styles.card,
             { backgroundColor: theme.surface, borderColor: theme.border },
@@ -233,6 +233,7 @@ export const WeeklyDayCard = forwardRef<View, WeeklyDayCardProps>(
               },
             ],
             isLocked && styles.cardLocked,
+            cardOverflowAnimatedStyle,
           ]}
         >
           <View
@@ -419,7 +420,7 @@ export const WeeklyDayCard = forwardRef<View, WeeklyDayCardProps>(
               />
             </Animated.View>
           ) : null}
-        </View>
+        </Animated.View>
       </Animated.View>
     );
   },

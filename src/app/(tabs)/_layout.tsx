@@ -37,6 +37,15 @@ export default function TabLayout() {
     if (activeTab === "home" && !segments.includes("session")) {
       const checkUserLocation = async () => {
         try {
+          // Set by OnboardingScreen right after completion so the first
+          // Home mount lands on Home (Onboarding → Home → Gym/Programs).
+          // Consumed here so later launches behave as before.
+          const skip = await AsyncStorage.getItem("skip_gym_redirect_once");
+          if (skip === "1") {
+            await AsyncStorage.removeItem("skip_gym_redirect_once");
+            return;
+          }
+
           // Get the user's training location from AsyncStorage
           const location = await AsyncStorage.getItem("user_training_location");
 
