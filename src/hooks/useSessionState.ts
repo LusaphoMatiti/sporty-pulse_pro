@@ -28,6 +28,24 @@ import type {
 const WEIGHTS_KEY = (instanceId: string, dayNumber: number) =>
   `sp_weights_${instanceId}_${dayNumber}`;
 
+// The API sends repsScheme (one rep target per set, e.g. [15, 12, 10]) rather
+// than a `sets` number, so the total sets is the length of repsScheme.
+function getTotalSets(ex: ExerciseForSession): number {
+  const scheme = (ex as unknown as { repsScheme?: number[] }).repsScheme;
+  return Array.isArray(scheme) ? scheme.length : ex.sets;
+}
+
+// The backend stores one actualReps number per exercise, but repsScheme has a
+// target per set, so log the average (rounded) of the scheme.
+function getRepsPerSet(ex: ExerciseForSession): number {
+  const scheme = (ex as unknown as { repsScheme?: number[] }).repsScheme;
+  if (Array.isArray(scheme) && scheme.length > 0) {
+    const sum = scheme.reduce((a, r) => a + (Number(r) || 0), 0);
+    return Math.round(sum / scheme.length);
+  }
+  return ex.reps;
+}
+
 interface UseSessionStateParams {
   instanceId: string;
   dayNumber: number;
@@ -54,6 +72,10 @@ export function useSessionState({
   const [phase, setPhase] = useState<SessionPhase>("in_progress");
 
   const logsRef = useRef<SessionLog[]>(draft?.logs ?? []);
+
+  // Set when the last set of the last exercise is done; the session is
+  // completed once that final rest ends (or is skipped).
+  const finishAfterRestRef = useRef(false);
 
   // Weights — loaded once from SecureStore, kept in ref for synchronous reads
   const weightsRef = useRef<Record<string, number>>({});
@@ -113,11 +135,12 @@ export function useSessionState({
       setPhase("ending");
 
       const finalLogs = [...logsRef.current];
-      if (completedSets > 0 && currentExercise) {
+      // When completed, the last exercise was already logged in handleCompleteSet
+      if (!completed && completedSets > 0 && currentExercise) {
         finalLogs.push({
           plannedExerciseId: currentExercise.id,
           actualSets: completedSets,
-          actualReps: currentExercise.reps,
+          actualReps: getRepsPerSet(currentExercise),
           weightKg: weightsRef.current[currentExercise.id] || undefined,
         });
       }
@@ -173,13 +196,14 @@ export function useSessionState({
       return;
 
     const newCompletedSets = completedSets + 1;
+    const totalSets = getTotalSets(currentExercise);
 
-    if (newCompletedSets >= currentExercise.sets) {
+    if (newCompletedSets >= totalSets) {
       // All sets done for this exercise — log it
       logsRef.current.push({
         plannedExerciseId: currentExercise.id,
-        actualSets: currentExercise.sets,
-        actualReps: currentExercise.reps,
+        actualSets: totalSets,
+        actualReps: getRepsPerSet(currentExercise),
         weightKg: weightsRef.current[currentExercise.id] || undefined,
       });
 
@@ -197,8 +221,10 @@ export function useSessionState({
           elapsedSeconds: getSeconds(),
         });
       } else {
-        // All exercises done — end as completed
-        handleEndSession(true);
+        // Last exercise done — rest, then complete the session (see onRestEnd)
+        finishAfterRestRef.current = true;
+        setPhase("resting");
+        startRest(currentExercise.restSeconds);
       }
     } else {
       // More sets remaining
@@ -223,18 +249,47 @@ export function useSessionState({
     getSeconds,
   ]);
 
+  // ─── Manual exercise navigation (Next / Back) ───────────────────────────────
+  // Moves to another exercise and starts it from set 0 (first rep target).
+
+  const goToExercise = useCallback(
+    (idx: number) => {
+      if (idx < 0 || idx >= totalExercises || idx === currentExerciseIdx)
+        return;
+      setCurrentExerciseIdx(idx);
+      setCompletedSets(0);
+      persistDraft({
+        currentExerciseIdx: idx,
+        completedSets: 0,
+        logs: logsRef.current,
+        elapsedSeconds: getSeconds(),
+      });
+    },
+    [totalExercises, currentExerciseIdx, persistDraft, getSeconds],
+  );
+
   // Called by useRestTimer when rest ends — screen can also call from skipRest
   const onRestEnd = useCallback(() => {
+    if (finishAfterRestRef.current) {
+      finishAfterRestRef.current = false;
+      handleEndSession(true);
+      return;
+    }
     setPhase("in_progress");
-  }, []);
+  }, [handleEndSession]);
 
   // ─── Pause / resume ──────────────────────────────────────────────────────────
 
+  // Remember what we were doing (in_progress / resting) so resume returns to it
+  const prePausePhaseRef = useRef<SessionPhase>("in_progress");
+
   const setPaused = useCallback((value: boolean) => {
     setPhase((prev) => {
-      if (value) return "paused";
-      // Restore to appropriate active phase
-      return prev === "paused" ? "in_progress" : prev;
+      if (value) {
+        if (prev !== "paused") prePausePhaseRef.current = prev;
+        return "paused";
+      }
+      return prev === "paused" ? prePausePhaseRef.current : prev;
     });
   }, []);
 
@@ -246,6 +301,7 @@ export function useSessionState({
     phase,
     logsRef,
     handleCompleteSet,
+    goToExercise,
     handleEndSession,
     persistDraft,
     clearPersistedDraft,

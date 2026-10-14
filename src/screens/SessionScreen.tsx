@@ -60,8 +60,6 @@ import { SPText } from "../components/ui/SPText";
 import { SPIcon } from "../components/icons/SPIcon";
 import { fonts } from "../theme";
 
-import { PauseExitSheet } from "../components/session/PauseExitSheet";
-
 import { useSessionTimer } from "../hooks/useSessionTimer";
 import { useRestTimer } from "../hooks/useRestTimer";
 import { useSessionState } from "../hooks/useSessionState";
@@ -718,11 +716,13 @@ function VideoPlayerCard({
   durationSeconds = 180,
   thumbnailUrl,
   onHideVideo,
+  paused = false,
   rs,
 }: {
   durationSeconds?: number;
   thumbnailUrl?: string | null;
   onHideVideo?: () => void;
+  paused?: boolean;
   rs: (...args: number[]) => number;
 }) {
   const { theme, isDark } = useAppTheme();
@@ -735,7 +735,8 @@ function VideoPlayerCard({
   useEffect(() => {
     if (videoIntervalRef.current) clearInterval(videoIntervalRef.current);
 
-    if (playing) {
+    // Freeze the video clock while the workout is paused; resumes where it left off
+    if (playing && !paused) {
       videoIntervalRef.current = setInterval(() => {
         setVideoSeconds((s) => {
           if (s + 1 >= durationSeconds) {
@@ -752,7 +753,7 @@ function VideoPlayerCard({
     return () => {
       if (videoIntervalRef.current) clearInterval(videoIntervalRef.current);
     };
-  }, [playing, durationSeconds]);
+  }, [playing, paused, durationSeconds]);
 
   const videoProgress =
     durationSeconds > 0 ? videoSeconds / durationSeconds : 0;
@@ -1306,7 +1307,7 @@ function MetricsCard({
           <SPText
             style={[s.metricValue, { color: theme.text, fontSize: rs(26, 28) }]}
           >
-            {completedSets} / {totalSets}
+            {totalSets} / {completedSets}
           </SPText>
           <SPText style={[s.metricLabel, { color: theme.muted }]}>SETS</SPText>
         </View>
@@ -1561,7 +1562,21 @@ function WorkoutFooter({
 
 // ─── SessionScreen ────────────────────────────────────────────────────────────
 
-export default function SessionScreen({
+// Keyed by program instance + session so the screen fully remounts when either
+// changes. Timer, sets, logs and phase can never carry over from a previous
+// program or session, even if the router reuses the mounted screen.
+export default function SessionScreen(
+  props: SessionScreenPropsWithProgression,
+) {
+  return (
+    <SessionScreenContent
+      key={`${props.instanceId}-${props.dayNumber}`}
+      {...props}
+    />
+  );
+}
+
+function SessionScreenContent({
   instanceId,
   dayNumber,
   planName,
@@ -1681,7 +1696,7 @@ export default function SessionScreen({
 
   // ─── Pause / exit ──────────────────────────────────────────────────────────
 
-  const showSheet = session.phase === "paused";
+  const isPaused = session.phase === "paused";
 
   const handleOpenSheet = useCallback(() => {
     timer.pause();
@@ -1693,14 +1708,16 @@ export default function SessionScreen({
     timer.resume();
   }, [timer, session]);
 
-  const handleSaveDraftAndLeave = useCallback(async () => {
-    await session.persistDraft();
-    router.replace("/(tabs)/training");
-  }, [session, router]);
-
-  const handleEndAndSave = useCallback(() => {
-    session.handleEndSession(false);
-  }, [session]);
+  // Next / Back: switch exercise and reset the hook's set count to 0.
+  const handleGoToExercise = useCallback(
+    (idx: number) => {
+      const clamped = Math.max(0, Math.min(total - 1, idx));
+      if (clamped === currentExIdx) return;
+      setCurrentExIdx(clamped);
+      session.goToExercise(clamped);
+    },
+    [total, currentExIdx, session],
+  );
 
   // ─── Derived display values ────────────────────────────────────────────────
 
@@ -1710,10 +1727,23 @@ export default function SessionScreen({
     : "00:00";
 
   const completedSetsForCurrent = session.completedSets ?? 0;
-  const totalSetsForCurrent =
-    session.currentExercise?.sets ?? currentExView?.sets ?? 0;
-  const totalRepsForCurrent =
-    session.currentExercise?.reps ?? currentExView?.reps ?? 0;
+  // repsScheme is one rep target per set, e.g. [15, 12, 10].
+  // Show the target for the set the user is on (set 1 -> 15, set 2 -> 12, ...).
+  // ExerciseForSession in types/session doesn't declare repsScheme yet, so read it via a local type.
+  type WithRepsScheme = { repsScheme?: number[] } | null | undefined;
+  const repsScheme =
+    (session.currentExercise as unknown as WithRepsScheme)?.repsScheme ??
+    (currentExView as unknown as WithRepsScheme)?.repsScheme;
+  // One repsScheme entry per set, so its length is the total number of sets.
+  const totalSetsForCurrent = Array.isArray(repsScheme)
+    ? repsScheme.length
+    : (session.currentExercise?.sets ?? currentExView?.sets ?? 0);
+  const currentSetIdx = Array.isArray(repsScheme)
+    ? Math.min(completedSetsForCurrent, repsScheme.length - 1)
+    : 0;
+  const totalRepsForCurrent = Array.isArray(repsScheme)
+    ? (repsScheme[currentSetIdx] ?? 0)
+    : 0;
 
   const currentMuscles: string[] = currentExView?.exercise.musclesWorked ?? [
     muscleGroup,
@@ -1792,6 +1822,7 @@ export default function SessionScreen({
                 currentExView ? thumbFor(currentExView.exercise.id) : null
               }
               onHideVideo={() => setVideoHidden(true)}
+              paused={isPaused}
               rs={rs}
             />
           )}
@@ -1818,9 +1849,9 @@ export default function SessionScreen({
 
           {/* 6 — Action Controls */}
           <ActionControls
-            onBack={() => setCurrentExIdx((i) => Math.max(0, i - 1))}
+            onBack={() => handleGoToExercise(currentExIdx - 1)}
             onComplete={completeHandler}
-            onNext={() => setCurrentExIdx((i) => Math.min(total - 1, i + 1))}
+            onNext={() => handleGoToExercise(currentExIdx + 1)}
             disabled={session.phase === "ending"}
             accentColor={accentColor}
             phase={session.phase}
@@ -1835,7 +1866,7 @@ export default function SessionScreen({
             resting={restTimer.resting}
             phase={session.phase}
             accentColor={accentColor}
-            onPauseResume={handleOpenSheet}
+            onPauseResume={isPaused ? handleResume : handleOpenSheet}
             onEnd={() => session.handleEndSession(false)}
             rs={rs}
           />
@@ -1858,16 +1889,6 @@ export default function SessionScreen({
           onClose={() => setPipActive(false)}
           onExpand={() => setPipActive(false)}
         />
-
-        {/* Pause / Exit Sheet */}
-        {showSheet && (
-          <PauseExitSheet
-            visible={showSheet}
-            onResume={handleResume}
-            onSaveDraftAndLeave={handleSaveDraftAndLeave}
-            onEndAndSave={handleEndAndSave}
-          />
-        )}
       </SafeAreaView>
 
       {/* ── Flow / Hide Mode Overlay ─────────────────────────────────────────
@@ -1875,7 +1896,7 @@ export default function SessionScreen({
           zIndex 90 sits above PipOverlay (zIndex 200 handles PiP separately).
           Tap anywhere to exit; PiP/Hide buttons intercept their own presses. */}
       <FlowModeOverlay
-        visible={isFlowMode && !showSheet && !showCompletion}
+        visible={isFlowMode && !isPaused && !showCompletion}
         current={currentExIdx + 1}
         total={total}
         level={levelLabel}
