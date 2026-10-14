@@ -27,6 +27,14 @@ import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { CACHE_KEYS } from "../lib/cacheKeys";
 import {
+  clearTrainingCache,
+  flushQueue,
+  getPendingCount,
+  getPendingSessionNumbers,
+  prefetchForOffline,
+  trainingCacheKey,
+} from "../lib/offilne";
+import {
   Sprout,
   TrendingUp,
   Crown,
@@ -1749,8 +1757,10 @@ export default function TrainingScreen() {
   const targetSessionRef = useRef<number | null>(null);
 
   const fetchData = useCallback(async () => {
+    // One cache entry per session day, so offline never shows the wrong day
+    const cacheKey = trainingCacheKey(sessionNumberParam);
     try {
-      const cached = await AsyncStorage.getItem(CACHE_KEYS.training);
+      const cached = await AsyncStorage.getItem(cacheKey);
       if (cached) {
         const parsed: TrainingData = JSON.parse(cached);
         const hasThumbnails = parsed.exercisesForView?.some(
@@ -1782,7 +1792,7 @@ export default function TrainingScreen() {
             JSON.stringify(thumbMap),
           ).catch(() => {});
         } else {
-          await AsyncStorage.removeItem(CACHE_KEYS.training);
+          await AsyncStorage.removeItem(cacheKey);
           setLoading(true);
         }
       } else {
@@ -1790,6 +1800,19 @@ export default function TrainingScreen() {
       }
     } catch {
       setLoading(true);
+    }
+
+    // Upload workouts finished offline first, so the server's "current
+    // session" is up to date. Capped so a bad connection can't stall the screen.
+    try {
+      if ((await getPendingCount()) > 0) {
+        await Promise.race([
+          flushQueue().catch(() => {}),
+          new Promise((resolve) => setTimeout(resolve, 4000)),
+        ]);
+      }
+    } catch {
+      // non-critical
     }
 
     try {
@@ -1819,7 +1842,7 @@ export default function TrainingScreen() {
       setWeights(base);
       setNoPlan(false);
       setLoading(false);
-      await AsyncStorage.setItem(CACHE_KEYS.training, JSON.stringify(d));
+      await AsyncStorage.setItem(cacheKey, JSON.stringify(d));
 
       const thumbMap: Record<string, string> = {};
       for (const e of d.exercisesForView) {
@@ -1838,7 +1861,52 @@ export default function TrainingScreen() {
       ].filter((url): url is string => !!url);
 
       Image.prefetch(urlsToPrefetch).catch(() => {});
+
+      // Save this workout and the next on the phone so they start offline
+      prefetchForOffline(
+        d.instanceId,
+        sessionNumberParam ? Number(sessionNumberParam) : d.currentSession,
+      ).catch(() => {});
     } catch {
+      // Offline. If a workout was finished on this phone and hasn't uploaded
+      // yet, the saved "current" day is already done — show the next saved day.
+      try {
+        if (!sessionNumberParam) {
+          const rawCurrent = await AsyncStorage.getItem(CACHE_KEYS.training);
+          if (rawCurrent) {
+            const current: TrainingData = JSON.parse(rawCurrent);
+            const pending = await getPendingSessionNumbers(current.instanceId);
+            if (pending.length > 0) {
+              const nextNumber = Math.max(...pending) + 1;
+              if (nextNumber > current.currentSession) {
+                const rawNext = await AsyncStorage.getItem(
+                  trainingCacheKey(nextNumber),
+                );
+                if (rawNext) {
+                  const nextData: TrainingData = JSON.parse(rawNext);
+                  setData(nextData);
+                  setWeights(
+                    Object.fromEntries(
+                      nextData.exercisesForView
+                        .filter(
+                          (e) =>
+                            e.exercise.equipment.length > 0 &&
+                            !e.exercise.equipment.some(
+                              (eq) => eq.name.toLowerCase() === "bodyweight",
+                            ),
+                        )
+                        .map((e) => [e.id, "" as number | ""]),
+                    ),
+                  );
+                  setNoPlan(false);
+                }
+              }
+            }
+          }
+        }
+      } catch {
+        // keep whatever is already on screen
+      }
       setLoading(false);
     }
   }, [sessionNumberParam]);
@@ -1864,7 +1932,7 @@ export default function TrainingScreen() {
         planId: switchTarget.id,
         level: switchLevel,
       });
-      await AsyncStorage.removeItem(CACHE_KEYS.training);
+      await clearTrainingCache();
       setSwitchTarget(null);
       await fetchData();
     } catch {

@@ -669,7 +669,9 @@ export function ProgressScreen() {
     );
   }
 
-  if (error || !data) {
+  // Only show the error when there is nothing saved to show (e.g. offline
+  // with cached data should still display that data).
+  if (!data) {
     return (
       <View
         style={[

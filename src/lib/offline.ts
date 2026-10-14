@@ -14,7 +14,16 @@
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AppState } from "react-native";
-import { ApiRequestError, completeSession, type SessionStartData } from "./api";
+import {
+  api,
+  ApiRequestError,
+  completeSession,
+  getSessionStart,
+  type SessionStartData,
+} from "./api";
+import { CACHE_KEYS } from "./cacheKeys";
+import { prefetchExerciseImages } from "./cloudinary";
+import type { SessionDraft } from "../types/session";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -36,6 +45,10 @@ export type FlushResult = {
 
 const QUEUE_KEY = "sp_offline_queue_v1";
 const FAILED_KEY = "sp_offline_failed_v1";
+// Must match the key SessionScreen reads (exercise id -> thumbnail url)
+const THUMBNAILS_KEY = "sp_exercise_thumbnails_v1";
+const LOCAL_DRAFT_KEY = (instanceId: string, sessionNumber: number) =>
+  `sp_local_draft_v1_${instanceId}_${sessionNumber}`;
 const SESSION_CACHE_KEY = (instanceId: string, sessionNumber: number) =>
   `sp_session_start_v1_${instanceId}_${sessionNumber}`;
 
@@ -70,6 +83,75 @@ export async function getCachedSessionStart(
   }
 }
 
+// Training-screen cache, one entry per session day so a cached day can never
+// be shown for a different day. No session number = the plan's current day.
+export function trainingCacheKey(sessionNumber?: string | number | null) {
+  return sessionNumber != null && sessionNumber !== ""
+    ? `${CACHE_KEYS.training}_s${sessionNumber}`
+    : CACHE_KEYS.training;
+}
+
+/** Remove every cached training day (used when switching programs). */
+export async function clearTrainingCache() {
+  try {
+    const keys = await AsyncStorage.getAllKeys();
+    await AsyncStorage.multiRemove(
+      keys.filter((k) => k.startsWith(CACHE_KEYS.training)),
+    );
+  } catch {
+    // non-critical
+  }
+}
+
+/**
+ * Save a workout and the next one on the phone while online, so they can be
+ * started later with no signal. Failures are ignored.
+ */
+export async function prefetchForOffline(
+  instanceId: string,
+  sessionNumber: number,
+) {
+  const next = sessionNumber + 1;
+
+  const cacheStart = async (n: number) => {
+    const res = await getSessionStart(instanceId, n);
+    if (res?.success && res.data)
+      await cacheSessionStart(instanceId, n, res.data);
+  };
+
+  const cacheTrainingDay = async (n: number) => {
+    const res = await api.get<{
+      success: boolean;
+      data?: { instanceId?: string };
+    }>(`/api/training?sessionNumber=${n}`);
+    if (res?.data?.instanceId) {
+      await AsyncStorage.setItem(trainingCacheKey(n), JSON.stringify(res.data));
+      // Thumbnails for that day's exercises, so SessionScreen shows them offline
+      const exercises =
+        (
+          res.data as {
+            exercisesForView?: {
+              exercise: { id: string; thumbnailUrl?: string | null };
+            }[];
+          }
+        ).exercisesForView ?? [];
+      const map: Record<string, string> = {};
+      for (const e of exercises) {
+        if (e.exercise.thumbnailUrl)
+          map[e.exercise.id] = e.exercise.thumbnailUrl;
+      }
+      await mergeThumbnailMap(map);
+      prefetchExerciseImages(exercises.map((e) => e.exercise.thumbnailUrl));
+    }
+  };
+
+  await Promise.all([
+    cacheStart(sessionNumber).catch(() => {}),
+    cacheStart(next).catch(() => {}),
+    cacheTrainingDay(next).catch(() => {}),
+  ]);
+}
+
 // ─── Queue storage (serialised so reads/writes never interleave) ──────────────
 
 let lock: Promise<unknown> = Promise.resolve();
@@ -92,6 +174,65 @@ async function writeList<T>(key: string, list: T[]) {
   await AsyncStorage.setItem(key, JSON.stringify(list));
 }
 
+// ─── Thumbnail map + local draft ──────────────────────────────────────────────
+
+/** Add to the exercise-id -> thumbnail map without dropping other days. */
+export function mergeThumbnailMap(map: Record<string, string>) {
+  return withLock(async () => {
+    try {
+      const raw = await AsyncStorage.getItem(THUMBNAILS_KEY);
+      const existing = raw ? (JSON.parse(raw) as Record<string, string>) : {};
+      await AsyncStorage.setItem(
+        THUMBNAILS_KEY,
+        JSON.stringify({ ...existing, ...map }),
+      );
+    } catch {
+      // non-critical
+    }
+  });
+}
+
+/** Workout progress kept on the phone, so an offline workout survives a restart. */
+export async function saveLocalDraft(
+  instanceId: string,
+  sessionNumber: number,
+  draft: SessionDraft,
+) {
+  try {
+    await AsyncStorage.setItem(
+      LOCAL_DRAFT_KEY(instanceId, sessionNumber),
+      JSON.stringify(draft),
+    );
+  } catch {
+    // non-critical
+  }
+}
+
+export async function getLocalDraft(
+  instanceId: string,
+  sessionNumber: number,
+): Promise<SessionDraft | null> {
+  try {
+    const raw = await AsyncStorage.getItem(
+      LOCAL_DRAFT_KEY(instanceId, sessionNumber),
+    );
+    return raw ? (JSON.parse(raw) as SessionDraft) : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function clearLocalDraft(
+  instanceId: string,
+  sessionNumber: number,
+) {
+  try {
+    await AsyncStorage.removeItem(LOCAL_DRAFT_KEY(instanceId, sessionNumber));
+  } catch {
+    // non-critical
+  }
+}
+
 // ─── Queue API ────────────────────────────────────────────────────────────────
 
 /** Save a finished workout on the phone. Always call this before uploading. */
@@ -109,6 +250,15 @@ export function enqueueCompletion(payload: CompletePayload) {
 
 export async function getPendingCount(): Promise<number> {
   return (await readList<QueueItem>(QUEUE_KEY)).length;
+}
+
+/** Session numbers finished on this phone but not uploaded yet. */
+export async function getPendingSessionNumbers(
+  instanceId: string,
+): Promise<number[]> {
+  return (await readList<QueueItem>(QUEUE_KEY))
+    .filter((q) => q.payload.instanceId === instanceId)
+    .map((q) => q.payload.sessionNumber);
 }
 
 /** Workouts the server refused (kept so they are never silently lost). */

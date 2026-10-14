@@ -17,7 +17,9 @@
 
 import { useCallback, useRef, useState } from "react";
 import * as SecureStore from "expo-secure-store";
-import { saveDraft, completeSession } from "../lib/api";
+import { Alert } from "react-native";
+import { saveDraft } from "../lib/api";
+import { enqueueCompletion, flushQueue } from "../lib/offilne";
 import type {
   ExerciseForSession,
   SessionDraft,
@@ -153,17 +155,29 @@ export function useSessionState({
       // ──────────────
 
       try {
-        const result = await completeSession({
+        // Save on the phone first, then upload. If there is no signal the
+        // workout stays queued and uploads automatically later.
+        await enqueueCompletion({
           instanceId,
           sessionNumber: dayNumber,
           durationSeconds: getSeconds(),
           completed,
           logs: finalLogs,
         });
-        console.log("[handleEndSession] completeSession result:", result); // ← ADD
-        await clearPersistedDraft();
+        const result = await flushQueue();
+        console.log("[handleEndSession] flush result:", result);
+        if (result.rejected.length > 0) {
+          Alert.alert("Workout not saved", result.rejected[0]);
+        } else if (result.pending > 0) {
+          Alert.alert(
+            "Saved on your phone",
+            "No connection right now. Your workout will upload automatically when you're back online.",
+          );
+        } else {
+          await clearPersistedDraft();
+        }
       } catch (e) {
-        console.error("[handleEndSession] completeSession THREW:", e); // ← ADD
+        console.error("[handleEndSession] saving workout THREW:", e);
       }
 
       try {
