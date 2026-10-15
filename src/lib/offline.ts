@@ -309,6 +309,10 @@ async function doFlush(): Promise<FlushResult> {
         );
       });
       synced++;
+      console.log(
+        "[offline] uploaded workout, session",
+        item.payload.sessionNumber,
+      );
     } catch (e) {
       if (isPermanentRejection(e)) {
         await withLock(async () => {
@@ -322,8 +326,10 @@ async function doFlush(): Promise<FlushResult> {
           await writeList(FAILED_KEY, failed);
         });
         rejected.push(e.message);
+        console.log("[offline] server rejected workout:", e.message);
         continue;
       }
+      console.log("[offline] upload failed, will retry:", String(e));
       break; // no signal / server down — keep it and try again later
     }
   }

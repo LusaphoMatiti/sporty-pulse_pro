@@ -10,7 +10,11 @@ import {
   getSessionStart,
   type SessionStartData,
 } from "../lib/api";
-import { cacheSessionStart, getCachedSessionStart } from "../lib/offilne";
+import {
+  cacheSessionStart,
+  getCachedSessionStart,
+  getLocalDraft,
+} from "../lib/offline";
 import { useAppTheme } from "../theme/ThemeContext";
 
 type LoadState =
@@ -38,37 +42,64 @@ export default function SessionRoute() {
 
     const n = Number(sessionNumber);
 
-    getSessionStart(instanceId, n)
-      .then((res) => {
+    const load = async () => {
+      const cached = await getCachedSessionStart(instanceId, n);
+      const local = await getLocalDraft(instanceId, n);
+      console.log(
+        "[session] saved copy:",
+        cached ? "yes" : "NO",
+        "| progress saved on phone:",
+        local ? "yes" : "no",
+      );
+
+      try {
+        const request = getSessionStart(instanceId, n);
+        // With a saved copy, don't wait on a connection that is "up" but not
+        // really working (e.g. Wi-Fi with no internet) — fall back after 3s.
+        const res = cached
+          ? await Promise.race([
+              request,
+              new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error("timeout")), 3000),
+              ),
+            ])
+          : await request;
         if (cancelled) return;
+
         if (!res?.success || !res.data) {
           setState({ status: "error", message: "Session not found" });
-        } else {
-          setState({ status: "ready", data: res.data });
-          // Keep a copy for offline use, and also save the next workout
-          cacheSessionStart(instanceId, n, res.data);
-          getSessionStart(instanceId, n + 1)
-            .then((next) => {
-              if (next?.success && next.data) {
-                cacheSessionStart(instanceId, n + 1, next.data);
-              }
-            })
-            .catch(() => {});
+          return;
         }
-      })
-      .catch(async (err: Error) => {
+
+        // Progress saved on this phone is at least as new as the server's
+        setState({
+          status: "ready",
+          data: local ? { ...res.data, draft: local } : res.data,
+        });
+        // Keep a copy for offline use, and also save the next workout
+        cacheSessionStart(instanceId, n, res.data);
+        getSessionStart(instanceId, n + 1)
+          .then((next) => {
+            if (next?.success && next.data) {
+              cacheSessionStart(instanceId, n + 1, next.data);
+            }
+          })
+          .catch(() => {});
+      } catch (err) {
         if (cancelled) return;
         // The server answered with an error — don't hide it behind the cache
         if (err instanceof ApiRequestError) {
           setState({ status: "error", message: err.message });
           return;
         }
-        // No connection: open the saved copy. Drafts can't be loaded offline,
-        // so the workout starts fresh instead of resuming a stale draft.
-        const cached = await getCachedSessionStart(instanceId, n);
-        if (cancelled) return;
+        // No (working) connection: open the saved copy, resuming any progress
+        // that was saved on this phone.
+        console.log(
+          "[session] offline, using saved copy:",
+          cached ? "yes" : "NO",
+        );
         if (cached) {
-          setState({ status: "ready", data: { ...cached, draft: null } });
+          setState({ status: "ready", data: { ...cached, draft: local } });
         } else {
           setState({
             status: "error",
@@ -76,7 +107,10 @@ export default function SessionRoute() {
               "No connection, and this workout isn't saved on your phone yet. Open it once while online and it will work offline next time.",
           });
         }
-      });
+      }
+    };
+
+    load();
 
     return () => {
       cancelled = true;

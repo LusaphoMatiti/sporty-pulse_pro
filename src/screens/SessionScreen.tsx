@@ -63,7 +63,11 @@ import { fonts } from "../theme";
 import { useSessionTimer } from "../hooks/useSessionTimer";
 import { useRestTimer } from "../hooks/useRestTimer";
 import { useSessionState } from "../hooks/useSessionState";
-import { CL, cloudinaryResize } from "../lib/cloudinary";
+import {
+  CL,
+  cloudinaryResize,
+  prefetchExerciseImages,
+} from "../lib/cloudinary";
 
 import type { SessionScreenProps } from "../types/session";
 import type { IconName } from "../components/icons/SPIcon";
@@ -778,7 +782,13 @@ function VideoPlayerCard({
         {/* Thumbnail — fills behind controls; swap for Video component when ready */}
         {thumbnailUrl ? (
           <Image
+            // key: a new exercise gets a fresh image instead of keeping the
+            // previous exercise's picture on screen when the new one can't load
+            key={thumbnailUrl}
             source={cloudinaryResize(thumbnailUrl, CL.videoCard) ?? undefined}
+            // small version (also used by UP NEXT) shows if the large one isn't saved
+            placeholder={cloudinaryResize(thumbnailUrl, CL.upNext) ?? undefined}
+            onError={(e) => console.log("[thumb] video image failed:", e.error)}
             style={[
               s.videoThumbInner,
               { backgroundColor: isDark ? "#000000" : "#F2F2F2" },
@@ -1168,8 +1178,12 @@ function FlowModeOverlay({
             {/* Thumbnail — fills the cinematic area while video isn't available */}
             {thumbnailUrl ? (
               <Image
+                key={thumbnailUrl}
                 source={
                   cloudinaryResize(thumbnailUrl, CL.flowMode) ?? undefined
+                }
+                placeholder={
+                  cloudinaryResize(thumbnailUrl, CL.upNext) ?? undefined
                 }
                 style={StyleSheet.absoluteFillObject}
                 contentFit="contain"
@@ -1650,6 +1664,12 @@ function SessionScreenContent({
 
   const thumbFor = (exerciseId: string): string | null =>
     thumbnailMap[exerciseId] ?? null;
+
+  // Make sure every exercise's images in this workout are saved on the phone
+  // (no-op if already saved; fails quietly offline)
+  useEffect(() => {
+    prefetchExerciseImages(exercises.map((ex) => thumbnailMap[ex.exercise.id]));
+  }, [thumbnailMap, exercises]);
 
   useEffect(() => {
     if (!restTimer.resting && session.phase === "resting") {

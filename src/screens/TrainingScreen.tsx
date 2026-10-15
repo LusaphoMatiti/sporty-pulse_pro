@@ -33,7 +33,7 @@ import {
   getPendingSessionNumbers,
   prefetchForOffline,
   trainingCacheKey,
-} from "../lib/offilne";
+} from "../lib/offline";
 import {
   Sprout,
   TrendingUp,

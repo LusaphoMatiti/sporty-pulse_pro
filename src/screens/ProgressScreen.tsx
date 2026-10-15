@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useRef } from "react";
 import {
   View,
   ScrollView,
@@ -11,6 +11,7 @@ import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "expo-router";
+import { flushQueue, getPendingCount } from "../lib/offline";
 import { SPText } from "../components/ui/SPText";
 import { SPCard } from "../components/ui/SPCard";
 import { SPBadge } from "../components/ui/SPBadge";
@@ -504,8 +505,13 @@ export function ProgressScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [historyLimit, setHistoryLimit] = useState(6);
   const [error, setError] = useState<string | null>(null);
+  // True while the last load failed (e.g. offline) — triggers automatic retries
+  const [loadFailed, setLoadFailed] = useState(false);
+  const fetchingRef = useRef(false);
 
   const fetchData = useCallback(async (isRefresh = false) => {
+    if (!isRefresh && fetchingRef.current) return;
+    fetchingRef.current = true;
     if (!isRefresh) {
       try {
         const cached = await AsyncStorage.getItem(CACHE_KEY);
@@ -518,15 +524,31 @@ export function ProgressScreen() {
       }
     }
 
+    // Upload workouts finished offline first so they show up here. Capped so
+    // a bad connection can't stall the screen.
+    try {
+      if ((await getPendingCount()) > 0) {
+        await Promise.race([
+          flushQueue().catch(() => {}),
+          new Promise((resolve) => setTimeout(resolve, 4000)),
+        ]);
+      }
+    } catch {
+      // non-critical
+    }
+
     try {
       if (isRefresh) setRefreshing(true);
       const d = await api.get<ProgressData>("/api/progress");
       setData(d);
       setError(null);
+      setLoadFailed(false);
       await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(d));
     } catch {
       setError("Could not load progress. Pull down to retry.");
+      setLoadFailed(true);
     } finally {
+      fetchingRef.current = false;
       setLoading(false);
       setRefreshing(false);
     }
@@ -536,6 +558,18 @@ export function ProgressScreen() {
     useCallback(() => {
       fetchData();
     }, [fetchData]),
+  );
+
+  // If the last load failed (offline), retry every 10s while this screen is
+  // showing, so the data updates by itself once the connection is back.
+  useFocusEffect(
+    useCallback(() => {
+      if (!loadFailed) return;
+      const timer = setInterval(() => {
+        fetchData();
+      }, 10_000);
+      return () => clearInterval(timer);
+    }, [loadFailed, fetchData]),
   );
 
   // ── topPR — must live above ALL early returns (Rules of Hooks) ──

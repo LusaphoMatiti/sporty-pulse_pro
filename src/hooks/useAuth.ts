@@ -14,3 +14,4 @@ export function useAuth() {
 
   return { hasToken };
 }
+// this is a hook

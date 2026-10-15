@@ -19,7 +19,7 @@ import { useCallback, useRef, useState } from "react";
 import * as SecureStore from "expo-secure-store";
 import { Alert } from "react-native";
 import { saveDraft } from "../lib/api";
-import { enqueueCompletion, flushQueue } from "../lib/offilne";
+import { enqueueCompletion, flushQueue } from "../lib/offline";
 import type {
   ExerciseForSession,
   SessionDraft,
